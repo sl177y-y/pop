@@ -168,7 +168,7 @@ export default function Verify() {
       return "RT @dFusionAI: dFusion Subnet Slots Distribution goes live June 6th at 8 AM UTC! 🔸5,000 Total Slots 🔸Starting Price: 0.1 ETH (Increase Eve…";
     } else if (selectedVaultId === '114') {
       // PAI3 announcement tweet content - matches tweet ID 1897363722651279671
-      return "RT @Pai3Ai: We're incredibly excited to announce the launch of our $500,000 Community Airdrop Pool!";
+      return "RT @Pai3Ai: Run nodes. Earn big. Power decentralized AI.";
     }
     return "";
   };
