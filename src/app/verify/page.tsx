@@ -1718,7 +1718,7 @@ export default function Verify() {
   // Effect for second useTwitterLike hook to update IndexedDB when hasLikedSecondTweet changes
   useEffect(() => {
     const selectedVaultId = localStorage.getItem('selectedVaultId');
-    if (selectedVaultId && user && selectedVaultId === '113') { // Only for vault 113
+    if (selectedVaultId && user && (selectedVaultId === '113' || selectedVaultId === '114')) { // For vault 113 and 114
         if (hasLikedSecondTweet !== undefined) {
             console.log(`[UI LOG - SecondLikeSync] Attempting to sync hasLikedSecondTweet (${hasLikedSecondTweet}) to secondTwitterLikeVerified in IndexedDB for vault: ${selectedVaultId}`);
             updateVerificationStatus(selectedVaultId, { secondTwitterLikeVerified: hasLikedSecondTweet })
