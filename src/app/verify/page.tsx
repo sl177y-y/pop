@@ -46,9 +46,9 @@ async function awardFreeCreditIfEligibleAPI(vaultId: number, walletAddress: stri
     // console.log(`[FRONTEND] Requesting free credits for vault ${vaultId}, wallet ${walletAddress}`);
     
     const res = await fetch('/api/vaults/award-free-credit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vaultId, walletAddress })
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vaultId, walletAddress, completedTasks: 8 })
     });
     
     const data = await res.json();
@@ -539,12 +539,14 @@ export default function Verify() {
             setIsFollowing(followData.isFollowing);
 
             if (followData.isFollowing) {
-              // User is following, now try to award free credits *before* updating IndexedDB for follow status
-              if (walletAddress && selectedVaultId) {
+              // Check if credits have already been awarded before attempting to award
+              const currentStatus = await getVerificationStatus(selectedVaultId);
+              if (!currentStatus?.creditsAwarded && walletAddress && selectedVaultId) {
                 console.log(`[FollowCheck] User is following. Attempting to award credits for vault ${selectedVaultId}`);
                 const creditResult = await awardFreeCreditIfEligibleAPI(Number(selectedVaultId), walletAddress);
                 if (creditResult.eligible) {
                   setCreditsGranted(true); // Update state based on awardFreeCreditIfEligibleAPI call
+                  await updateVerificationStatus(selectedVaultId, { creditsAwarded: true }); // Mark credits as awarded
                   console.log(`[FollowCheck] Successfully awarded ${creditResult.creditsGained} credits for vault ${selectedVaultId}.`);
                 } else {
                   setCreditsGranted(false);
@@ -552,6 +554,9 @@ export default function Verify() {
                   // Optionally, set a user-facing message if credit award specifically fails,
                   // distinct from followError which is about the follow action itself.
                 }
+              } else if (currentStatus?.creditsAwarded) {
+                console.log(`[FollowCheck] Credits already awarded for vault ${selectedVaultId}, skipping credit award API call`);
+                setCreditsGranted(true); // Set UI state to show credits already granted
               } else {
                 console.warn("[FollowCheck] Missing walletAddress or selectedVaultId for awarding credits.");
                 setCreditsGranted(false); // Ensure credits are not granted if data is missing
@@ -775,8 +780,16 @@ export default function Verify() {
             else setExtraLinkCoinsGranted(false); // Ensure coins are reset
             // Add similar for retweet/like coins if they have separate coin states
 
+            // Check if credits were already awarded and set the state accordingly
+            if (status.creditsAwarded) {
+              setCreditsGranted(true);
+              console.log(`[UI LOG - LoadAllStates] Credits already awarded for vault: ${selectedVaultId}`);
+            } else {
+              setCreditsGranted(false);
+            }
+
             // Log individual statuses found
-            console.log(`[UI LOG - LoadAllStates] From DB - TwitterFollow: ${status.twitterFollowVerified}, Telegram: ${status.telegramVerified}, TweetPosted: ${status.tweetPostedVerified}, Retweet: ${status.retweetVerified}, TwitterLike: ${status.twitterLikeVerified}, Discord: ${status.discordVerified}, LinkedIn: ${status.linkedinVerified}, ExtraLink: ${status.extraLinkVerified}`);
+            console.log(`[UI LOG - LoadAllStates] From DB - TwitterFollow: ${status.twitterFollowVerified}, Telegram: ${status.telegramVerified}, TweetPosted: ${status.tweetPostedVerified}, Retweet: ${status.retweetVerified}, TwitterLike: ${status.twitterLikeVerified}, Discord: ${status.discordVerified}, LinkedIn: ${status.linkedinVerified}, ExtraLink: ${status.extraLinkVerified}, CreditsAwarded: ${status.creditsAwarded}`);
 
             // Auto-verify Cluster Protocol follow for specific vault IDs if not already verified
             if (shouldSkipClusterFollow() && !status.twitterFollowClusterVerified) {
@@ -1670,7 +1683,7 @@ export default function Verify() {
       // localStorage.removeItem(`twitter_like_verified_${selectedVaultId}`); // Removed
       // Instead of removing individual localStorage items, clear the IndexedDB record for the vault
       await deleteVerificationStatus(selectedVaultId);
-      // And reset relevant UI states
+      // And reset relevant UI states including credits awarded flag
       setIsFollowing(false);
       setTelegramCreditsGranted(false);
       setDiscordCreditsGranted(false);
@@ -1689,6 +1702,7 @@ export default function Verify() {
       setDiscordCoinsGranted(false);
       setLinkedinCoinsGranted(false);
       setExtraLinkCoinsGranted(false);
+      setCreditsGranted(false); // Reset credits granted state
       console.log('[ManualRetry] Cleared IndexedDB state for vault and reset UI states:', selectedVaultId);
     }
   };
@@ -2598,7 +2612,7 @@ export default function Verify() {
                                 : extraLinkProcessing
                                 ? "Processing..."
                                 : extraLinkCreditsGranted
-                                ? "Buy Now"
+                                ? "Node Sale"
                                 : "SUBNET SLOTS"}
                             </span>
                             {/* Place coin text under the main button text */}

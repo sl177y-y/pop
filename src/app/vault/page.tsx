@@ -369,7 +369,7 @@ export default function Vault() {
                         : styling.isBlueTheme 
                           ? 'w-full max-w-[520px]' 
                           : styling.isVault114 
-                            ? 'w-full max-w-[500px]' 
+                            ? 'w-full max-w-[500px] mt-4' // Added mt-4 to move PAI card down slightly for desktop alignment
                             : 'w-full'
                     }`}
                   onMouseEnter={() => handleVaultHover(vault.id)}
@@ -463,7 +463,7 @@ export default function Vault() {
                             ? styling.isVault114
                               ? 'top-[145px] left-6' // Adjusted for reduced vault 114 height
                               : styling.isBlueTheme 
-                                ? 'top-[150px] left-12' // Special positioning for vault 113
+                                ? 'top-[150px] left-9' // Special positioning for vault 113
                                 : 'top-[150px] left-12' // Adjusted positioning for other cards
                             : styling.isVault114
                               ? 'top-[224px] left-12'
@@ -478,7 +478,7 @@ export default function Vault() {
                                 : styling.isBlueTheme
                                   ? 'text-4xl md:text-5xl'
                                   : styling.isVault114
-                                    ? 'text-3xl md:text-4xl ml-0'
+                                    ? 'text-3xl md:text-5xl ml-0'
                                     : 'text-3xl md:text-4xl ml-3'
                             }`}
                         >
@@ -519,7 +519,7 @@ export default function Vault() {
                         <div className={`absolute ${
                           isMobile 
                             ? styling.isVault114
-                              ? 'bottom-4 right-4' // Adjusted for reduced vault 114 height
+                              ? 'bottom-4 right-1' // Adjusted for reduced vault 114 height
                               : styling.isBlueTheme
                                 ? 'bottom-8 right-4' // Special positioning for vault 113
                                 : 'bottom-13 right-4' // Standard positioning for other cards

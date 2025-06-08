@@ -4,8 +4,8 @@ import { atomicAwardFreeCredits } from '@/lib/server/db';
 export async function POST(request: NextRequest) {
   try {
     console.log('[award-free-credit] Incoming request');
-    const { vaultId, walletAddress } = await request.json();
-    console.log('[award-free-credit] Input:', { vaultId, walletAddress });
+    const { vaultId, walletAddress, completedTasks } = await request.json();
+    console.log('[award-free-credit] Input:', { vaultId, walletAddress, completedTasks });
     
     // Validate inputs
     if (!vaultId || !walletAddress) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use the atomic function for reliable credit awarding
-    const result = await atomicAwardFreeCredits(numericVaultId, walletAddress);
+    const result = await atomicAwardFreeCredits(numericVaultId, walletAddress, completedTasks);
     
     console.log('[award-free-credit] Atomic award result:', result);
     

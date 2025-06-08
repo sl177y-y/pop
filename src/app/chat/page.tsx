@@ -392,9 +392,11 @@ export default function Chat() {
     initialMessages: [],
     streamMode: "text",
     onResponse: (response) => {
-      // console.log("[ChatUI useChat] onResponse: Received response object:", response);
+      console.log("[ChatUI useChat] onResponse: Received response object:", response);
+      console.log("[ChatUI useChat] Response status:", response.status);
+      console.log("[ChatUI useChat] Response OK:", response.ok);
       if (!response.ok) {
-        // console.error("[ChatUI useChat] onResponse: Response not OK", response.status, response.statusText);
+        console.error("[ChatUI useChat] onResponse: Response not OK", response.status, response.statusText);
       }
     },
     onFinish: async (message) => {
@@ -685,9 +687,29 @@ Good luck!`,
     // Prevent form submission default behavior
     e.preventDefault();
     
+    console.log('🚀 Form submit attempted');
+    console.log('📝 Input value:', input);
+    console.log('💰 User credits:', userCredits);
+    console.log('⏳ AI loading:', aiLoading);
+    
     // Trim the message and check if it's empty
     const trimmedMessage = input.trim();
-    if (!trimmedMessage) return;
+    if (!trimmedMessage) {
+      console.log('❌ Message is empty, not submitting');
+      return;
+    }
+    
+    if (userCredits <= 0) {
+      console.log('❌ No credits available, not submitting');
+      return;
+    }
+    
+    if (aiLoading) {
+      console.log('❌ AI is loading, not submitting');
+      return;
+    }
+    
+    console.log('✅ All checks passed, submitting message');
     
     // Call the handleSubmit from useChat.
     // This will automatically append the user message and then handle the API call.

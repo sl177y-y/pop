@@ -609,7 +609,7 @@ export async function getUserIdFromWallet(walletAddress: string): Promise<number
  * Atomically award free credits - ensures both eligibility tracking and credit awarding succeed together
  * This is the recommended function to use for awarding free credits
  */
-export async function atomicAwardFreeCredits(vaultId: number, walletAddress: string): Promise<{
+export async function atomicAwardFreeCredits(vaultId: number, walletAddress: string, completedTasks?: number): Promise<{
   success: boolean;
   creditsAwarded: number;
   message: string;
@@ -667,9 +667,17 @@ export async function atomicAwardFreeCredits(vaultId: number, walletAddress: str
       };
     }
 
-    // Step 2: Determine credit amount
-    const creditsToAward = vaultId === 113 ? 8 : (vault.tweetContent ? 4 : 3);
-    console.log(`[ATOMIC_AWARD] Will award ${creditsToAward} credits (vault has tweet content: ${!!vault.tweetContent})`);
+    // Step 2: Determine credit amount based on completed tasks
+    let creditsToAward: number;
+    if (completedTasks !== undefined && completedTasks > 0) {
+      // Award 1 credit per completed verification task
+      creditsToAward = completedTasks;
+      console.log(`[ATOMIC_AWARD] Will award ${creditsToAward} credits for ${completedTasks} completed tasks`);
+    } else {
+      // Fallback to old logic for backward compatibility
+      creditsToAward = vaultId === 113 ? 8 : (vault.tweetContent ? 4 : 3);
+      console.log(`[ATOMIC_AWARD] Using fallback logic: ${creditsToAward} credits (vault has tweet content: ${!!vault.tweetContent})`);
+    }
 
     // Step 3: Ensure user exists
     let user = await getUserByWallet(walletAddress);

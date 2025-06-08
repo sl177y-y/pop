@@ -28,6 +28,8 @@ export interface VerificationStatus {
   extraLinkVerifiedTimestamp?: Date;
   allStepsVerified?: boolean; // To replace verified_${selectedVaultId}
   allStepsVerifiedTimestamp?: Date;
+  creditsAwarded?: boolean; // Track if credits have been awarded for this vault
+  creditsAwardedTimestamp?: Date;
   // We can remove retweetClicked as it's more of a UI flow state than a persistent verification
 }
 
