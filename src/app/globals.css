@@ -1,0 +1,705 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+  --accent: #FFD500;
+}
+
+@theme {
+  --breakpoint-xs: 480px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'VT323', monospace;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+@font-face {
+  font-family: 'Pixelated';
+  src: local('Courier New'), local('monospace');
+  font-weight: bold;
+}
+
+h1, h2, h3 {
+  font-family: "Pixelify Sans", monospace;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Pixel-style font for headlines */
+.pixel-font {
+  font-family: "Pixelify Sans", monospace;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  image-rendering: pixelated;
+  font-smooth: never;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: none;
+  text-rendering: optimizeSpeed;
+}
+
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  transform: scale(1.05);
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.4;
+  }
+  75%, 100% {
+    transform: scale(1.1);
+    opacity: 0;
+  }
+}
+
+/* Floating animation for head graphic */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Custom Device Breakpoints */
+/* Mobile devices - under 440x800 */
+@media (max-width: 440px) {
+  :root {
+    --device-type: 'mobile';
+  }
+}
+
+/* Tablet devices - 768x1024 */
+@media (min-width: 441px) and (max-width: 1023px) {
+  :root {
+    --device-type: 'tablet';
+  }
+}
+
+/* iPad Mini and 768x1024 specific fixes */
+@media (width: 769px) and (height: 1025px), 
+       (width: 1025px) and (height: 769px) {
+  :root {
+    --device-type: 'ipad-mini';
+  }
+  
+  /* Chat page specific adjustments for iPad Mini */
+  /* Change the calc(98% - 20px) to calc(88% - 20px) */
+  div[style*="max-width: calc(98% - 20px)"] {
+    max-width: calc(88% - 20px) !important;
+  }
+  
+  /* Completely disable/hide the sidebar toggle and menu on chat page for iPad Mini */
+  button[aria-label="Close sidebar"],
+  div[class*="fixed md:relative inset-0 z-50"] {
+    display: none !important;
+  }
+  
+  div[class*="fixed inset-0 bg-black bg-opacity-60"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+  
+  /* Make sure the sidebar is never visible on iPad Mini */
+  .hidden {
+    display: none !important;
+  }
+  
+  /* Prevent the chat page from being blacked out by hamburger menu */
+  body.overflow-hidden {
+    overflow: auto !important;
+  }
+  
+  /* Force mobile view on iPad Mini for better layout */
+  .flex-col.md\:flex-row {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  /* Adjust mascot size specifically for iPad Mini */
+  div[class*='xs:w-1/3'][class*='md:w-1/2'] {
+    width: 70% !important;
+    max-width: 550px !important;
+    margin-top: 0 !important;
+  }
+  
+  /* Make Zura head image larger */
+  .animate-float {
+    max-width: none !important;
+    max-height: none !important;
+    transform: scale(1.4) !important;
+    margin-top: 0 !important;
+  }
+  
+  /* Chat page layout fixes for 768x1024 */
+  .flex-1.mt-2.ml-4.sm\:ml-12.mr-4.sm\:mr-28 {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    max-width: 90% !important;
+  }
+  
+  /* Special styling for our ipad-mini-mascot class */
+  .ipad-mini-mascot {
+    transform: scale(1.3) !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  
+  /* Adjust text size for better readability */
+  h1[class*='md:text-7xl'] {
+    font-size: 60px !important;
+    line-height: 1.1 !important;
+    margin-top: 2rem !important;
+  }
+  
+  /* Fix margins between elements */
+  div[class*='md:ml-6'] {
+    margin-left: 0 !important;
+    text-align: center !important;
+  }
+  
+  /* Give more space for the main elements */
+  .flex-1 {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-top: 0;
+    min-height: 0 !important;
+  }
+  
+  /* Ensure button is positioned correctly */
+  [class*="AngularButton"] {
+    margin: 1rem auto !important;
+  }
+  
+  /* Reduce margins and padding to fit everything better */
+  [class*="-mt-18"],
+  [class*="-mt-40"],
+  [class*="-mt-20"],
+  [class*="-mt-15"],
+  [class*="-mt-30"] {
+    margin-top: 0 !important;
+  }
+  
+  /* Verify page specific styles for 768x1024 */
+  /* Fix the card layout for tablet */
+  .lg\:w-2\/5,
+  .lg\:w-1\/3,
+  .lg\:w-1\/4 {
+    width: 85% !important;
+    margin: 0 auto !important;
+    max-height: 85vh !important;
+  }
+  
+  /* Card needs to be smaller to fit */
+  div[class*="md:h-[900px]"] {
+    height: 500px !important;
+    max-height: 75vh !important;
+  }
+  
+  /* Adjust HUD animation size */
+  .w-\[900px\] {
+    width: 600px !important;
+  }
+  
+  .h-\[700px\] {
+    height: 450px !important;
+  }
+  
+  /* Better position buttons in verify page */
+  [class*="max-w-6xl"] {
+    max-width: 85% !important;
+    margin-top: 0 !important;
+  }
+  
+  /* Center and fix the COMPLETE THE ACCESS PROCEDURE text */
+  h1[class*="text-yellow-500"][class*="text-4xl"] {
+    font-size: 28px !important;
+    margin-top: 0 !important;
+    margin-bottom: 2rem !important;
+  }
+  
+  /* Make join buttons much bigger */
+  .lg\:w-1\/4 {
+    height: auto !important;
+  }
+  
+  /* Adjust button widths and sizes */
+  .cursor-pointer.relative.w-full {
+    height: 70px !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  /* Fix the PROCEED TO VAULT button size */
+  [class*="h-24"] {
+    height: 4rem !important;
+  }
+  
+  /* Center and size for telegram/twitter buttons on verify page */
+  img[src*="/selectedverifybg.svg"],
+  img[src*="/unselectedverifybg.svg"] {
+    height: 70px !important;
+    width: 100% !important;
+    object-fit: cover !important;
+  }
+}
+
+/* Laptop devices - 1024+ */
+@media (min-width: 1024px) {
+  :root {
+    --device-type: 'laptop';
+  }
+}
+
+/* 4K devices */
+@media (min-width: 2560px) {
+  :root {
+    --device-type: 'desktop-4k';
+  }
+}
+
+/* Apply different styles based on device orientation */
+@media (max-width: 768px) and (orientation: portrait) {
+  :root {
+    --orientation: 'portrait';
+  }
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+  :root {
+    --orientation: 'landscape';
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Portal/hologram glow pulsing animation */
+@keyframes pulse {
+  0% { 
+    opacity: 1; 
+    transform: translateY(60%) scale(1.1);
+    filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.6));
+  }
+  50% { 
+    opacity: 1; 
+    transform: translateY(60%) scale(1.3);
+    filter: drop-shadow(0 0 40px rgba(245, 158, 11, 0.8));
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(60%) scale(1.1);
+    filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.6));
+  }
+}
+
+/* Glowing center spot animation */
+@keyframes glow {
+  0% { 
+    opacity: 0.8;
+    filter: blur(2px); 
+    box-shadow: 0 0 20px 10px rgba(255, 165, 0, 0.6);
+  }
+  50% { 
+    opacity: 1;
+    filter: blur(3px); 
+    box-shadow: 0 0 25px 15px rgba(255, 165, 0, 0.9);
+  }
+  100% { 
+    opacity: 0.8;
+    filter: blur(2px); 
+    box-shadow: 0 0 20px 10px rgba(255, 165, 0, 0.6);
+  }
+}
+
+/* Breathing light effect animation */
+@keyframes breathe {
+  0% { 
+    opacity: 0.7;
+    filter: blur(15px);
+  }
+  50% { 
+    opacity: 0.9;
+    filter: blur(20px);
+  }
+  100% { 
+    opacity: 0.7;
+    filter: blur(15px);
+  }
+}
+
+/* Golden ray pulsing animation */
+@keyframes ray-pulse {
+  0% { 
+    opacity: 0.8;
+    filter: blur(4px);
+    transform: perspective(800px) rotateX(-5deg) scaleX(0.95);
+  }
+  50% { 
+    opacity: 1;
+    filter: blur(5px);
+    transform: perspective(800px) rotateX(-5deg) scaleX(1.05);
+  }
+  100% { 
+    opacity: 0.8;
+    filter: blur(4px);
+    transform: perspective(800px) rotateX(-5deg) scaleX(0.95);
+  }
+}
+
+/* Delayed ray pulsing animation */
+@keyframes ray-pulse-delay {
+  0% { 
+    opacity: 0.7;
+    filter: blur(3px);
+  }
+  50% { 
+    opacity: 0.9;
+    filter: blur(4px);
+  }
+  100% { 
+    opacity: 0.7;
+    filter: blur(3px);
+  }
+}
+
+/* Ground glow animation */
+@keyframes ground-glow {
+  0% { 
+    opacity: 0.7;
+    filter: blur(10px);
+    transform: scaleX(0.95);
+  }
+  50% { 
+    opacity: 0.9;
+    filter: blur(12px);
+    transform: scaleX(1.05);
+  }
+  100% { 
+    opacity: 0.7;
+    filter: blur(10px);
+    transform: scaleX(0.95);
+  }
+}
+
+/* Portal circle pulsing animation */
+@keyframes portal-pulse {
+  0% { 
+    opacity: 0.7;
+    filter: blur(8px);
+    transform: translateY(0) scaleX(1);
+  }
+  50% { 
+    opacity: 0.9;
+    filter: blur(10px);
+    transform: translateY(-5px) scaleX(1.1);
+  }
+  100% { 
+    opacity: 0.7;
+    filter: blur(8px);
+    transform: translateY(0) scaleX(1);
+  }
+}
+
+/* Portal inner glow pulsing animation */
+@keyframes portal-inner-pulse {
+  0% { 
+    opacity: 1;
+    filter: blur(5px);
+    transform: scaleX(0.9) scaleY(0.8);
+  }
+  50% { 
+    opacity: 1;
+    filter: blur(7px);
+    transform: scaleX(1.1) scaleY(1);
+  }
+  100% { 
+    opacity: 1;
+    filter: blur(5px);
+    transform: scaleX(0.9) scaleY(0.8);
+  }
+}
+
+/* Upward ray pulsing animation */
+@keyframes upray-pulse {
+  0% { 
+    opacity: 0.7;
+    height: 90%;
+    filter: blur(3px);
+  }
+  50% { 
+    opacity: 0.9;
+    height: 100%;
+    filter: blur(4px);
+  }
+  100% { 
+    opacity: 0.7;
+    height: 90%;
+    filter: blur(3px);
+  }
+}
+
+/* Hide scrollbar for Webkit browsers */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for Firefox */
+* {
+  scrollbar-width: none;
+}
+
+/* Hide border for small mobile devices */
+@media (max-width: 800px) and (max-height: 1025px) {
+  /* Hide the frame border on mobile */
+  .mobile-hidden-border,
+  [class*="border-frame"] {
+    display: none !important;
+  }
+  
+  /* Enable page scrolling for specific mobile/tablet sizes */
+  html {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+  body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    min-height: 100vh !important; 
+    height: auto !important;      
+  }
+  body > div, main { 
+    overflow: visible !important; 
+    height: auto !important;
+    min-height: 0 !important; 
+  }
+  /* .h-screen elements maintain height: 100vh via Tailwind.
+     Apply overflow-y: auto to them individually if their content needs to scroll.
+  */
+  
+  /* Add gap between header and title text */
+  .header-title-gap {
+    margin-top: 25px !important;
+    padding-top: 35px !important;
+  }
+  
+  /* Ensure proper content placement */
+  .flex-1 {
+    flex: 1 0 auto !important;
+  }
+  
+  /* Fix spacing and prevent text cutoff for the "COMPLETE THE ACCESS PROCEDURE" text */
+  h1.text-yellow-500.text-4xl {
+    font-size: 28px !important;
+    line-height: 1.3 !important;
+    letter-spacing: 0.05em !important;
+    padding: 0 10px !important;
+    word-spacing: 0.2em !important;
+    margin-top: 50px !important;
+    white-space: normal !important;
+    max-width: 100% !important;
+  }
+  
+  /* Specific styling for the mobile heading */
+  .mobile-heading {
+    font-size: 25px !important;
+    line-height: 1.4 !important;
+    letter-spacing: 0.1em !important;
+    word-spacing: 0.25em !important;
+    display: flex !important;
+    flex-direction: column !important;
+    text-align: center !important;
+    padding: 0 15px !important;
+  }
+  
+  /* Also adjust the inner container */
+  .mobile-lock-inner {
+    margin-top: 0 !important;
+  }
+  
+  /* Force negative margin for lock container */
+  [data-mobile-lock="true"] {
+    margin-top: -70px !important;
+  }
+
+  /* Hide elements for extra small mobile */
+  .xs-mobile-hide-heading,
+  .xs-mobile-hide-card {
+    display: none !important;
+  }
+  /* Adjust padlock size and position for extra small mobile */
+  .mobile-lock-inner {
+    transform: scale(0.80) !important;
+    transform-origin: center !important;
+    margin-top: 10px !important;
+  }
+  [data-mobile-lock="true"] {
+    /* Remove excessive negative margin to avoid clipping */
+    margin-top: 0 !important;
+  }
+  /* Tighten vault layout spacing */
+  .xs-mobile-vault-layout {
+    /* Remove extra top offset */
+    margin-top: 0 !important;
+  }
+  /* Reduce space between padlock and buttons */
+  .xs-mobile-vault-layout > div:last-child {
+    margin-top: -135px !important;
+    gap: 0.5rem !important;
+  }
+  /* Reduce verify button height */
+  .xs-mobile-vault-layout > div:last-child .h-24 {
+    height: 4.5rem !important;
+  }
+  /* Increase verify button width slightly */
+  .xs-mobile-vault-layout > div:last-child [class*="w-7/8"] {
+    width: 80% !important;
+  }
+  /* Fix footer to stick at bottom of viewport on extra small mobile */
+  footer {
+    position: fixed !important;
+    bottom: 10px !important;
+    left: 0 !important;
+    width: 100% !important;
+    pointer-events: none !important;
+    text-align: center !important;
+  }
+  /* Reduce gap above Proceed to Vault button */
+  .xs-mobile-vault-layout > div:last-child .mt-10 {
+    margin-top: 0.5rem !important;
+  }
+
+  /* Hide gridmat.png image on smaller devices */
+  img[src*="gridmat.png"] {
+    display: none !important;
+  }
+
+  /* Hide gridfloor on smaller devices */
+  .gridfloor {
+    display: none !important;
+  }
+
+  /* Show dynamic vault data overlay for extra small mobile */
+  .xs-mobile-vault-overlay {
+    display: block !important;
+    position: absolute !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 1000 !important;
+    top: 0 !important;
+    left: 0 !important;
+    opacity: 1 !important;
+  }
+}
+
+/* Hide the dynamic vault overlay on larger devices */
+.xs-mobile-vault-overlay {
+  display: none;
+  position: absolute;
+  z-index: 0;
+}
+
+/* Tablet and mobile navbar sidebar styles */
+.mobile-sidebar-enter {
+  transform: translateX(100%);
+}
+
+.mobile-sidebar-enter-active {
+  transform: translateX(0);
+  transition: transform 300ms ease-in-out;
+}
+
+.mobile-sidebar-exit {
+  transform: translateX(0);
+}
+
+.mobile-sidebar-exit-active {
+  transform: translateX(100%);
+  transition: transform 300ms ease-in-out;
+}
+
+/* Fix for sidebar fixed positioning on mobile */
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    z-index: 40;
+    background-color: rgba(0, 0, 0, 0.7);
+    position: fixed;
+    inset: 0;
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out, backdrop-filter 0.3s ease-in-out;
+  }
+  
+  .sidebar-overlay.block {
+    opacity: 1;
+  }
+  
+  .mobile-sidebar {
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+    z-index: 50;
+    height: 100vh;
+    width: 75%;
+    max-width: 300px;
+    position: fixed;
+    top: 0;
+    right: 0;
+    background-color: black;
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    border-left: none;
+    visibility: visible;
+  }
+  
+  .mobile-sidebar.visible {
+    transform: translateX(0);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Improve button hover effects in sidebar */
+  .mobile-sidebar a {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .mobile-sidebar a::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.2), transparent);
+    transition: left 0.5s ease;
+  }
+  
+  .mobile-sidebar a:hover::before {
+    left: 100%;
+  }
+}
