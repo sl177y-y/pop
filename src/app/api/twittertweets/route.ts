@@ -386,6 +386,9 @@ function checkTweetContent(tweets: TweetDetails[], contentToCheck: string): {
     const contentWords = contentWithoutRt.split(' ').filter(word => word.length > 2);
     const tweetWords = tweetWithoutRt.split(' ').filter(word => word.length > 2);
     const matchingWords = contentWords.filter(word => tweetWithoutRt.includes(word));
+    
+    // Stricter check: all content words must be present in the tweet
+    const allWordsMatch = contentWords.length > 0 && contentWords.every(word => tweetWithoutRt.includes(word));
     const similarityScore = contentWords.length > 0 ? matchingWords.length / contentWords.length : 0;
     
     console.log(`[CONTENT_CHECK] Match analysis for tweet ${i + 1}:`);
@@ -393,6 +396,7 @@ function checkTweetContent(tweets: TweetDetails[], contentToCheck: string): {
     console.log(`[CONTENT_CHECK]   URL-free match: ${urlFreeMatch}`);
     console.log(`[CONTENT_CHECK]   RT-free match: ${rtFreeMatch}`);
     console.log(`[CONTENT_CHECK]   Retweet content match: ${retweetContentMatch}`);
+    console.log(`[CONTENT_CHECK]   All words match (stricter): ${allWordsMatch}`);
     console.log(`[CONTENT_CHECK]   Is retweet: ${isRetweet}`);
     console.log(`[CONTENT_CHECK]   Similarity score: ${similarityScore.toFixed(2)} (${matchingWords.length}/${contentWords.length} words)`);
     console.log(`[CONTENT_CHECK]   Matching words: [${matchingWords.join(', ')}]`);
@@ -402,15 +406,14 @@ function checkTweetContent(tweets: TweetDetails[], contentToCheck: string): {
     // 2. URL-free content matches, OR  
     // 3. RT-free content matches, OR
     // 4. Retweet content matches (for RT tweets), OR
-    // 5. High similarity (80%+ words match) for content with many words
-    const isMatch = exactMatch || urlFreeMatch || rtFreeMatch || retweetContentMatch || 
-                   (similarityScore >= 0.8 && contentWords.length >= 5);
+    // 5. All significant words from the content are present in the tweet (stricter check)
+    const isMatch = exactMatch || urlFreeMatch || rtFreeMatch || retweetContentMatch || allWordsMatch;
     
     console.log(`[CONTENT_CHECK] Final match result for tweet ${i + 1}: ${isMatch}`);
     
     if (isMatch) {
       console.log(`[CONTENT_CHECK] ✅ MATCH FOUND! Tweet ${i + 1} contains the required content`);
-      console.log(`[CONTENT_CHECK] Match type: ${exactMatch ? 'exact' : urlFreeMatch ? 'url-free' : rtFreeMatch ? 'rt-free' : retweetContentMatch ? 'retweet-content' : 'similarity'}`);
+      console.log(`[CONTENT_CHECK] Match type: ${exactMatch ? 'exact' : urlFreeMatch ? 'url-free' : rtFreeMatch ? 'rt-free' : retweetContentMatch ? 'retweet-content' : 'all-words'}`);
       console.log(`[CONTENT_CHECK] Matching tweet details:`, {
         id: tweet.id,
         created_at: tweet.created_at,
