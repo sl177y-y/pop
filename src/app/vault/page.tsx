@@ -304,7 +304,7 @@ export default function Vault() {
         backgroundImage: 'url("/go-5.png")',
         isBlueTheme: true,
         isVault114: false,
-        backgroundSize: !isMobile ? '120% 109%' : '115% 105%',
+        backgroundSize: !isMobile ? '120% 109%' : '122% 105%',
       };
     } else if (index === 1 && vault.id === 114) {
       // Vault 114 (green theme with custom background)
@@ -320,9 +320,13 @@ export default function Vault() {
         backgroundImage: 'url("/vaultborder.png")',
         isBlueTheme: false,
         isVault114: false,
-        backgroundSize: '100% 100%',
+        backgroundSize: !isMobile ? '100% 100%' : '112% 100%'
       };
     }
+  };
+
+  const isDfusionVault = (id: number | undefined) => {
+    return id === 113;
   };
 
   return (
@@ -464,7 +468,7 @@ export default function Vault() {
                               ? 'top-[145px] left-6' // Adjusted for reduced vault 114 height
                               : styling.isBlueTheme 
                                 ? 'top-[150px] left-9' // Special positioning for vault 113
-                                : 'top-[150px] left-12' // Adjusted positioning for other cards
+                                : 'top-[150px] left-9' // Adjusted positioning for other cards
                             : styling.isVault114
                               ? 'top-[224px] left-12'
                               : styling.isBlueTheme
@@ -516,47 +520,68 @@ export default function Vault() {
                       </div>
 
                                               {/* Button - positioned at bottom */}
-                        <div className={`absolute ${
-                          isMobile 
-                            ? styling.isVault114
-                              ? 'bottom-4 right-1' // Adjusted for reduced vault 114 height
-                              : styling.isBlueTheme
-                                ? 'bottom-8 right-4' // Special positioning for vault 113
-                                : 'bottom-13 right-4' // Standard positioning for other cards
-                            : styling.isVault114 
-                              ? 'top-[220px] left-72' 
-                              : 'bottom-16 left-10 md:left-74'
-                        } flex justify-center z-10`}>
-                        <StartButton
-                          onClick={() => handleStartClick(vault.id)}
-                          href="#"
-                          disabled={shouldBlurVault(index) || vault.total_prize <= 0 || vault.available_prize <= 0}
-                          imageSrc={
-                            styling.isBlueTheme 
-                              ? "/start-vault-2.png" 
-                              : styling.isVault114 
-                                ? "/PAI/startbutton.png" 
-                                : "/vaultstart.png"
-                          }
-                          imageClassName={
-                            styling.isBlueTheme 
-                              ? "scale-[1.9] ml-2" 
-                              : styling.isVault114 
-                                ? "scale-[1.5] ml-1" 
-                                : ""
-                          }
+                        <div
+                          className={`absolute ${
+                            isMobile
+                              ? styling.isVault114
+                                ? 'bottom-4 right-1'
+                                : styling.isBlueTheme
+                                  ? 'bottom-8 right-1'
+                                  : 'bottom-13 right-4'
+                              : styling.isVault114
+                                ? 'top-[200px] left-70'
+                                : 'bottom-14 left-10 md:left-73'
+                          } flex justify-center z-10`}
                         >
-                          <span className={`text-black ${
-                              isMobile 
-                                ? 'text-sm ml-2' // Standardized button text for mobile
-                                : styling.isVault114 
-                                  ? 'text-2xl md:text-3xl ml-8 md:ml-12' 
-                                  : 'text-xl md:text-3xl ml-10 md:ml-14'
-                            } font-bold`}>
-                            START
-                          </span>
-                        </StartButton>
-                      </div>
+                          <StartButton
+                            onClick={() => handleStartClick(vault.id)}
+                            href="#"
+                            disabled={
+                              shouldBlurVault(index) ||
+                              vault.total_prize <= 0 ||
+                              vault.available_prize <= 0
+                            }
+                            imageSrc={
+                              styling.isBlueTheme
+                                ? "/start-vault-2.png"
+                                : styling.isVault114
+                                  ? "/PAI/startbutton.png"
+                                  : "/vaultstart.png"
+                            }
+                            imageClassName={
+                              styling.isBlueTheme
+                                ? isMobile
+                                  ? "scale-[1.2]"
+                                  : "scale-[1.9] ml-2"
+                                : styling.isVault114
+                                  ? isMobile
+                                    ? "scale-[1.0]"
+                                    : "scale-[1.5] ml-1"
+                                  : isMobile
+                                    ? "scale-[1.0]"
+                                    : ""
+                            }
+                            vaultType={
+                              vault.id === 113
+                                ? 'vault113'
+                                : vault.id === 114
+                                  ? 'vault114'
+                                  : 'others'
+                            }
+                          >
+                            <span
+                              className={`text-black ${
+                                isMobile
+                                  ? 'text-xs ml-6'
+                                  : styling.isVault114
+                                    ? 'text-2xl md:text-3xl ml-8 md:ml-12'
+                                    : 'text-xl md:text-3xl ml-10 md:ml-14'
+                              } font-bold`}
+                            >
+                              START
+                            </span>
+                          </StartButton>
+                        </div>
                     </div>
 
                     {/* Optional glow overlay */}
