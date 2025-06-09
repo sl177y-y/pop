@@ -41,36 +41,27 @@ const VAULT_CONFIG = {
 
 // Helper function to get private key for specific vault
 function getPrivateKeyForVault(vaultId) {
-	try {
-		const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
+	const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
 
-		if (isNaN(numericVaultId)) {
-			console.log('Invalid vault ID, using default private key');
-			return process.env.APTOS_PRIVATE_KEY;
-		}
-
-		const vaultConfig = VAULT_CONFIG[numericVaultId];
-
-		if (!vaultConfig) {
-			console.log(`No configuration found for vault ${numericVaultId}, using default private key`);
-			return process.env.APTOS_PRIVATE_KEY;
-		}
-
-		const privateKey = process.env[vaultConfig.privateKeyEnvVar];
-
-		if (!privateKey) {
-			console.error(`Private key ${vaultConfig.privateKeyEnvVar} not found`);
-			return process.env.APTOS_PRIVATE_KEY;
-		}
-
-		console.log(`✅ Using ${vaultConfig.description} for vault ${numericVaultId}`);
-		return privateKey;
-
-	} catch (error) {
-		console.error('Error in getPrivateKeyForVault:', error);
-		console.log('Falling back to default private key due to error');
+	if (isNaN(numericVaultId)) {
 		return process.env.APTOS_PRIVATE_KEY;
 	}
+
+	const vaultConfig = VAULT_CONFIG[numericVaultId];
+
+	if (!vaultConfig) {
+		return process.env.APTOS_PRIVATE_KEY;
+	}
+
+	const privateKey = process.env[vaultConfig.privateKeyEnvVar];
+
+	if (!privateKey) {
+		console.error(`Private key ${vaultConfig.privateKeyEnvVar} not found`);
+		return process.env.APTOS_PRIVATE_KEY;
+	}
+
+	console.log(`✅ Using ${vaultConfig.description} for vault ${numericVaultId}`);
+	return privateKey;
 }
 
 // Logger function for AI responses

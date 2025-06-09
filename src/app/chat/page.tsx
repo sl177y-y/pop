@@ -1159,7 +1159,7 @@ Good luck!`,
               <button
                 onClick={() => handleBuyCredits(5)}
                 disabled={isBuying}
-                className={`${vaultId === "113" ? 'w-full' : vaultId === "114" ? 'w-full' : 'w-full'} ${vaultId === "113" ? 'h-auto' : vaultId === "114" ? 'h-auto' : 'h-10'} py-2 rounded relative overflow-hidden ${
+                className={`${vaultId === "113" ? 'w-full' : vaultId === "114" ? 'w-full' : 'w-full'} ${vaultId === "113" ? 'h-auto' : vaultId === "114" ? 'h-auto' : 'h-10'} py-0 rounded relative overflow-hidden ${
                   isBuying ? "bg-gray-700" : ""
                 } text-black font-bold transition-all duration-200 flex items-center justify-center group`}
                 style={{
@@ -1585,13 +1585,13 @@ Good luck!`,
           {/* Chat messages container - with improved spacing for all screens */}
           <div
             ref={chatContainerRef}
-            className={`absolute inset-0 z-10 ${isMobile ? 'pt-16 pb-40' : 'pt-6 pb-24'} sm:pt-10 md:pt-4 px-2 sm:px-4 md:px-6 overflow-y-auto scrollbar-hide`}
+            className={`absolute inset-0 ${isMobile ? 'z-20' : 'z-10'} ${isMobile ? 'pt-16 pb-52' : 'pt-6 pb-24'} sm:pt-10 md:pt-4 px-2 sm:px-4 md:px-6 overflow-y-auto scrollbar-hide`}
             style={{
               backdropFilter: "blur(1px)",
               background: "rgba(0,0,0,0.1)",
               borderRadius: "8px",
-              height: "88%", // Further reduced to prevent overflow
-              maxHeight: "calc(100% - 60px)" // Ensure it doesn't overflow into input
+              height: isMobile ? "calc(100% - 80px)" : "88%", // Ensure proper mobile height
+              maxHeight: isMobile ? "calc(100% - 120px)" : "calc(100% - 60px)" // Prevent overlap with input
             }}
           >
             {/* Mascot Image - properly sized for all screens */}
@@ -1822,7 +1822,7 @@ Good luck!`,
                   disabled={aiLoading || input.trim() === '' || userCredits <= 0}
                   className={`hover:opacity-90 transition flex items-center justify-center uppercase tracking-wide ${
                     isMobile
-                      ? 'w-full text-black py-3 font-bold'
+                      ? 'w-full text-black py-0 font-bold'
                       : 'text-black rounded-r-md h-full'
                   } ${(aiLoading || input.trim() === '' || userCredits <= 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
                   style={isMobile ? {
