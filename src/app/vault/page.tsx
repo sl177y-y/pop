@@ -470,7 +470,7 @@ export default function Vault() {
                                 ? 'top-[150px] left-9' // Special positioning for vault 113
                                 : 'top-[150px] left-9' // Adjusted positioning for other cards
                             : styling.isVault114
-                              ? 'top-[224px] left-12'
+                              ? 'top-[224px] left-10'
                               : styling.isBlueTheme
                                 ? 'top-[240px] left-12'
                                 : 'top-[200px] left-18'
@@ -529,7 +529,7 @@ export default function Vault() {
                                   ? 'bottom-8 right-1'
                                   : 'bottom-13 right-4'
                               : styling.isVault114
-                                ? 'top-[200px] left-70'
+                                ? 'top-[200px] left-68'
                                 : 'bottom-14 left-10 md:left-73'
                           } flex justify-center z-10`}
                         >
