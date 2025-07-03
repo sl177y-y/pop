@@ -110,7 +110,7 @@ function extractCursor(responseData: any): string | null {
  * Check if user is following a target account (by Twitter IDs only) with pagination
  */
 async function checkFollowing(userId: string, targetUserId: string): Promise<boolean> {
-  console.log(`[DEBUG] Checking if user ${userId} follows ${targetUserId} with pagination`);
+  // console.log(`[DEBUG] Checking if user ${userId} follows ${targetUserId} with pagination`);
   
   let cursor: string | null = null;
   let pageCount = 0;
@@ -120,7 +120,7 @@ async function checkFollowing(userId: string, targetUserId: string): Promise<boo
   try {
     while (pageCount < maxPages) {
       pageCount++;
-      console.log(`[DEBUG] Fetching page ${pageCount} for user ${userId}${cursor ? ` with cursor: ${cursor.substring(0, 20)}...` : ''}`);
+      // console.log(`[DEBUG] Fetching page ${pageCount} for user ${userId}${cursor ? ` with cursor: ${cursor.substring(0, 20)}...` : ''}`);
 
       // Build the path with cursor if available
       let path = `/user/following?user_id=${userId}&limit=100`;
@@ -149,7 +149,7 @@ async function checkFollowing(userId: string, targetUserId: string): Promise<boo
       const followingList = parseFollowingEntries(response.data);
       totalChecked += followingList.length;
       
-      console.log(`[DEBUG] Page ${pageCount}: Found ${followingList.length} following accounts (total checked: ${totalChecked})`);
+      // console.log(`[DEBUG] Page ${pageCount}: Found ${followingList.length} following accounts (total checked: ${totalChecked})`);
 
       // Check if target user is in this page
       const isFollowing = followingList.some((user: any) =>
@@ -157,7 +157,7 @@ async function checkFollowing(userId: string, targetUserId: string): Promise<boo
       );
 
       if (isFollowing) {
-        console.log(`[DEBUG] Found target user ${targetUserId} on page ${pageCount}! User ${userId} is following.`);
+        // console.log(`[DEBUG] Found target user ${targetUserId} on page ${pageCount}! User ${userId} is following.`);
         return true;
       }
 
@@ -166,7 +166,7 @@ async function checkFollowing(userId: string, targetUserId: string): Promise<boo
       
       // If no more pages or cursor is the same as previous, break
       if (!nextCursor || nextCursor === cursor || followingList.length === 0) {
-        console.log(`[DEBUG] No more pages available. Total accounts checked: ${totalChecked}`);
+        // console.log(`[DEBUG] No more pages available. Total accounts checked: ${totalChecked}`);
         break;
       }
 
@@ -177,10 +177,10 @@ async function checkFollowing(userId: string, targetUserId: string): Promise<boo
     }
 
     if (pageCount >= maxPages) {
-      console.log(`[DEBUG] Reached maximum pages (${maxPages}). Total accounts checked: ${totalChecked}`);
+      // console.log(`[DEBUG] Reached maximum pages (${maxPages}). Total accounts checked: ${totalChecked}`);
     }
 
-    console.log(`[DEBUG] User ${userId} does not follow ${targetUserId} (checked ${totalChecked} accounts across ${pageCount} pages)`);
+    // console.log(`[DEBUG] User ${userId} does not follow ${targetUserId} (checked ${totalChecked} accounts across ${pageCount} pages)`);
     return false;
 
   } catch (error) {
@@ -214,32 +214,32 @@ function extractTwitterUsername(url: string): string | null {
 async function updateVerifiedFollows(twitterUsername: string, targetUsername: string, walletAddress?: string): Promise<boolean> {
   try {
     if (!walletAddress) {
-      console.log('[DEBUG] No wallet address provided for updating verified follows');
+      // console.log('[DEBUG] No wallet address provided for updating verified follows');
       return false;
     }
 
     // First check if this Twitter ID is already used by another wallet
-    console.log(`[DEBUG] Checking if Twitter ID ${twitterUsername} already exists with another wallet`);
+    // console.log(`[DEBUG] Checking if Twitter ID ${twitterUsername} already exists with another wallet`);
     const { checkIfTwitterIdExists } = await import('@/lib/server/db');
     const twitterIdCheck = await checkIfTwitterIdExists(twitterUsername);
     
     // If Twitter ID already exists with another wallet, return false
     if (twitterIdCheck.exists && twitterIdCheck.existingWallet !== walletAddress) {
-      //console.log(`[DEBUG] Twitter ID ${twitterUsername} already exists with wallet: ${twitterIdCheck.existingWallet}`);
+      //// console.log(`[DEBUG] Twitter ID ${twitterUsername} already exists with wallet: ${twitterIdCheck.existingWallet}`);
       return false;
     }
 
     // Get current user data
-   // console.log(`[DEBUG] Fetching user data to update verified follows for wallet: ${walletAddress}`);
+   // // console.log(`[DEBUG] Fetching user data to update verified follows for wallet: ${walletAddress}`);
     const user = await getUserByWallet(walletAddress);
     if (!user) {
-     // console.log(`[DEBUG] User with wallet ${walletAddress} not found for updating verified follows`);
+     // // console.log(`[DEBUG] User with wallet ${walletAddress} not found for updating verified follows`);
       return false;
     }
 
     // Debug logging the twitter data
-    //console.log(`[DEBUG] Raw Twitter data from DB (for update):`, JSON.stringify(user.twitter));
-    //console.log(`[DEBUG] Twitter data type (for update):`, typeof user.twitter);
+    //// console.log(`[DEBUG] Raw Twitter data from DB (for update):`, JSON.stringify(user.twitter));
+    //// console.log(`[DEBUG] Twitter data type (for update):`, typeof user.twitter);
     
     // Initialize twitter data
     let twitterData = {
@@ -252,9 +252,9 @@ async function updateVerifiedFollows(twitterUsername: string, targetUsername: st
       let existingTwitter = user.twitter;
       if (typeof user.twitter === 'string') {
         try {
-          console.log('[DEBUG] Attempting to parse existing Twitter data from string');
+          // console.log('[DEBUG] Attempting to parse existing Twitter data from string');
           existingTwitter = JSON.parse(user.twitter);
-          console.log('[DEBUG] Successfully parsed existing Twitter data:', JSON.stringify(existingTwitter));
+          // console.log('[DEBUG] Successfully parsed existing Twitter data:', JSON.stringify(existingTwitter));
         } catch (parseError) {
           console.error('[DEBUG] Error parsing existing Twitter data:', parseError);
           // Continue with empty data if we can't parse
@@ -272,7 +272,7 @@ async function updateVerifiedFollows(twitterUsername: string, targetUsername: st
       }
     }
 
-    console.log(`[DEBUG] Current verified follows before update:`, JSON.stringify(twitterData.verified_follows));
+    // console.log(`[DEBUG] Current verified follows before update:`, JSON.stringify(twitterData.verified_follows));
 
     // Only add if not already in the array (case insensitive check)
     const alreadyExists = twitterData.verified_follows.some(
@@ -281,12 +281,12 @@ async function updateVerifiedFollows(twitterUsername: string, targetUsername: st
     
     if (!alreadyExists) {
       twitterData.verified_follows.push(targetUsername);
-      console.log(`[DEBUG] Adding ${targetUsername} to verified follows for ${walletAddress}`);
+      // console.log(`[DEBUG] Adding ${targetUsername} to verified follows for ${walletAddress}`);
     } else {
-      console.log(`[DEBUG] ${targetUsername} already in verified follows for ${walletAddress}`);
+      // console.log(`[DEBUG] ${targetUsername} already in verified follows for ${walletAddress}`);
     }
 
-    console.log(`[DEBUG] New twitter data to save:`, JSON.stringify(twitterData));
+    // console.log(`[DEBUG] New twitter data to save:`, JSON.stringify(twitterData));
 
     // Update user with new Twitter data
     const updatedUser = await createOrUpdateUser({
@@ -295,7 +295,7 @@ async function updateVerifiedFollows(twitterUsername: string, targetUsername: st
       twitter: twitterData
     });
 
-    console.log(`[DEBUG] Update result:`, !!updatedUser);
+    // console.log(`[DEBUG] Update result:`, !!updatedUser);
     return !!updatedUser;
   } catch (error) {
     console.error('[DEBUG] Error updating verified follows:', error);
@@ -308,7 +308,7 @@ async function updateVerifiedFollows(twitterUsername: string, targetUsername: st
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    console.log('[DEBUG] rapidfollowingcheck API called');
+    // console.log('[DEBUG] rapidfollowingcheck API called');
     if (!process.env.RAPID_API_KEY) {
       console.error('[DEBUG] RAPID_API_KEY not configured in environment variables');
       return NextResponse.json(
@@ -321,10 +321,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     // Now expect twitterUserId and sponsorTwitterId directly
     const { twitterUserId, sponsorTwitterId, walletAddress } = body;
-    console.log(`[DEBUG] Received request for userId: ${twitterUserId}, targetId: ${sponsorTwitterId}, wallet: ${walletAddress?.substring(0, 10)}...`);
+    // console.log(`[DEBUG] Received request for userId: ${twitterUserId}, targetId: ${sponsorTwitterId}, wallet: ${walletAddress?.substring(0, 10)}...`);
 
     if (!twitterUserId || !sponsorTwitterId) {
-      console.log('[DEBUG] Missing required parameters');
+      // console.log('[DEBUG] Missing required parameters');
       return NextResponse.json(
         { success: false, error: 'Missing twitterUserId or sponsorTwitterId' },
         { status: 400 }
@@ -332,13 +332,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // First check if this Twitter ID is already used by another wallet
-    console.log(`[DEBUG] Checking if Twitter ID ${twitterUserId} already exists with another wallet`);
+    // console.log(`[DEBUG] Checking if Twitter ID ${twitterUserId} already exists with another wallet`);
     const { checkIfTwitterIdExists } = await import('@/lib/server/db');
     const twitterIdCheck = await checkIfTwitterIdExists(twitterUserId);
     
     // If Twitter ID already exists with another wallet, return an error
     if (twitterIdCheck.exists && twitterIdCheck.existingWallet !== walletAddress) {
-     // console.log(`[DEBUG] Twitter ID ${twitterUserId} already exists with wallet: ${twitterIdCheck.existingWallet}`);
+     // // console.log(`[DEBUG] Twitter ID ${twitterUserId} already exists with wallet: ${twitterIdCheck.existingWallet}`);
       return NextResponse.json({
         success: false,
         error: `This Twitter account is already linked to another wallet: }`
@@ -362,21 +362,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const vaultId = body.vaultId || null;
       if (vaultId) {
         try {
-          console.log(`[rapidfollowingcheck] Attempting to award free credits for vault ${vaultId}, wallet ${walletAddress}`);
+          // console.log(`[rapidfollowingcheck] Attempting to award free credits for vault ${vaultId}, wallet ${walletAddress}`);
           
           // Use the atomic function for reliable credit awarding
           const { atomicAwardFreeCredits } = await import("@/lib/server/db");
           const result = await atomicAwardFreeCredits(Number(vaultId), walletAddress);
           
-          console.log(`[rapidfollowingcheck] Atomic award result:`, result);
+          // console.log(`[rapidfollowingcheck] Atomic award result:`, result);
           
           if (result.success) {
             creditsGranted = true;
-            console.log(`[rapidfollowingcheck] Successfully awarded ${result.creditsAwarded} credits to ${walletAddress}`);
+            // console.log(`[rapidfollowingcheck] Successfully awarded ${result.creditsAwarded} credits to ${walletAddress}`);
           } else {
             creditsGranted = false;
             if (result.alreadyAwarded) {
-              console.log(`[rapidfollowingcheck] Credits already awarded to ${walletAddress} for vault ${vaultId}`);
+              // console.log(`[rapidfollowingcheck] Credits already awarded to ${walletAddress} for vault ${vaultId}`);
             } else {
               console.warn(`[rapidfollowingcheck] Failed to award credits: ${result.message}`);
             }

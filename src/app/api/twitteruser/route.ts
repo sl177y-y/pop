@@ -92,7 +92,7 @@ async function getUserDetails(username: string): Promise<TwitterUserDetails | nu
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    console.log('[DEBUG] twitteruser API called');
+    // console.log('[DEBUG] twitteruser API called');
     
     // Check if API key is configured
     if (!process.env.RAPID_API_KEY) {
@@ -107,10 +107,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const { username } = body;
 
-    console.log(`[DEBUG] Received request for username: ${username}`);
+    // console.log(`[DEBUG] Received request for username: ${username}`);
 
     if (!username) {
-      console.log('[DEBUG] Missing required parameters');
+      // console.log('[DEBUG] Missing required parameters');
       return NextResponse.json(
         { success: false, error: 'Missing username' },
         { status: 400 }
@@ -118,17 +118,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Get user details
-    console.log(`[DEBUG] Getting user details for ${username}`);
+    // console.log(`[DEBUG] Getting user details for ${username}`);
     const userDetails = await getUserDetails(username);
     if (!userDetails) {
-      console.log('[DEBUG] Failed to fetch user details');
+      // console.log('[DEBUG] Failed to fetch user details');
       return NextResponse.json(
         { success: false, error: 'Failed to fetch user details' },
         { status: 404 }
       );
     }
 
-    console.log(`[DEBUG] User details retrieved for ${username}: id=${userDetails.rest_id}`);
+    // console.log(`[DEBUG] User details retrieved for ${username}: id=${userDetails.rest_id}`);
 
     // Return the user details
     return NextResponse.json({

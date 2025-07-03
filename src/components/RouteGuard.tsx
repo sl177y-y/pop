@@ -1,6 +1,6 @@
 "use client";
 
-import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { useWalletStore } from "@/store/wallet";
 import { useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
@@ -9,95 +9,52 @@ interface RouteGuardProps {
 }
 
 /**
- * Route guard component to check wallet connection
- * Redirects to home page if wallet is not connected after giving time for wallet to load
+ * Route guard component to check wallet connection for Aptos or EVM
+ * Redirects to home page if no wallet is connected after a brief loading period
  */
 export function RouteGuard({ children }: RouteGuardProps) {
-  const { connected, connecting } = useWallet();
+  const { aptosConnected, evmConnected } = useWalletStore();
   const router = useRouter();
-  // Track initial load to see if user connected before in this session
-  const hasConnectedBefore = typeof window !== 'undefined' && sessionStorage.getItem('hasConnected') === 'true';
-  const [walletCheckComplete, setWalletCheckComplete] = useState(false);
-  const [shouldRedirect, setShouldRedirect] = useState(false);
 
-  // Check for wallet address in localStorage as additional validation
-  const checkLocalWallet = () => {
-    if (typeof window === 'undefined') return false;
-    
-    const walletAddress = localStorage.getItem('userWalletAddress') || 
-                         localStorage.getItem('wallet_address') || 
-                         localStorage.getItem('walletAddress') || 
-                         localStorage.getItem('aptosWalletAddress');
-    
-    return !!walletAddress;
-  };
-
-  // Check immediately if we have a wallet in localStorage to show page right away
-  const hasLocalWallet = checkLocalWallet();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Give wallet time to initialize and auto-connect
-    const walletCheckTimer = setTimeout(() => {
-      setWalletCheckComplete(true);
-    }, 2000); // Wait 2 seconds for wallet to load
+    // Give wallets a moment to initialize from localStorage/sessionStorage
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 1000); // 1-second delay to check for existing connections
 
-    return () => clearTimeout(walletCheckTimer);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    // Don't check until wallet check is complete
-    if (!walletCheckComplete) {
-      return;
+    if (!isReady) {
+      return; // Wait until check is complete
     }
 
-    if (connecting) {
-      return;
-    }
-    
-    if (connected) {
-      // Save flag so refresh won't redirect
-      sessionStorage.setItem('hasConnected', 'true');
-      setShouldRedirect(false);
-      return;
-    }
+    // console.log('🛡️ RouteGuard: Checking wallet connections', { aptosConnected, evmConnected });
 
-    // Check if wallet exists in localStorage
-    const currentLocalWallet = checkLocalWallet();
-    
-    // If not connected but has wallet in localStorage or connected before, allow access
-    if (currentLocalWallet || hasConnectedBefore) {
-      // console.log('Wallet found in localStorage or connected before, allowing access');
-      setShouldRedirect(false);
-      return;
-    }
-    
-    // If not connected and no wallet found, redirect after delay
-    if (!connected && !hasConnectedBefore && !currentLocalWallet) {
-      // console.log('No wallet connection found, redirecting to home page');
-      setShouldRedirect(true);
+    // If check is complete and neither wallet is connected, redirect to home
+    if (!aptosConnected && !evmConnected) {
+      // console.log('❌ No Aptos or EVM wallet connection found, redirecting to home page.');
       router.push('/');
+    } else {
+      // console.log('✅ At least one wallet is connected, allowing access');
     }
-  }, [connected, connecting, hasConnectedBefore, router, walletCheckComplete]);
+  }, [isReady, aptosConnected, evmConnected, router]);
 
-  // Only show loading/redirect if wallet check is complete and we should redirect
-  if (walletCheckComplete && shouldRedirect) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-yellow-500 text-xl">Redirecting...</div>
-      </div>
-    );
-  }
-
-  // Show the page immediately if we have a wallet in localStorage or if wallet check isn't complete yet
-  // This allows the page to render while wallet is loading in the background
-  if (hasLocalWallet || hasConnectedBefore || !walletCheckComplete || connected) {
+  // If either wallet is connected, or if we are still waiting for the check, show the content
+  if (aptosConnected || evmConnected || !isReady) {
     return <>{children}</>;
   }
 
-  // Fallback loading state (should rarely be reached)
+  // Fallback loading/redirecting state
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-yellow-500 text-xl">Loading...</div>
+    <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="text-yellow-500 text-xl flex items-center gap-2">
+        <div className="w-4 h-4 border-t-2 border-yellow-500 rounded-full animate-spin"></div>
+        <span>Loading...</span>
+      </div>
     </div>
   );
 }

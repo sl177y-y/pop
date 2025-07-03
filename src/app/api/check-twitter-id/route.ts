@@ -3,13 +3,13 @@ import { checkIfTwitterIdExists } from "@/lib/server/db";
 
 export async function POST(request: Request) {
   try {
-    console.log('[DEBUG] check-twitter-id API called');
+    // console.log('[DEBUG] check-twitter-id API called');
     
     const { twitterId } = await request.json();
-    console.log(`[DEBUG] Checking Twitter ID: ${twitterId}`);
+    // console.log(`[DEBUG] Checking Twitter ID: ${twitterId}`);
 
     if (!twitterId) {
-      console.log('[DEBUG] Missing Twitter ID parameter');
+      // console.log('[DEBUG] Missing Twitter ID parameter');
       return NextResponse.json(
         { error: "Twitter ID is required" },
         { status: 400 }
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const checkResult = await checkIfTwitterIdExists(twitterId);
     
     if (checkResult.exists) {
-      console.log(`[DEBUG] Twitter ID ${twitterId} already exists for wallet: ${checkResult.existingWallet}`);
+      // console.log(`[DEBUG] Twitter ID ${twitterId} already exists for wallet: ${checkResult.existingWallet}`);
       return NextResponse.json({
         exists: true,
         existingWallet: checkResult.existingWallet,

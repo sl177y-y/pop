@@ -3,6 +3,7 @@ import "./globals.css";
 // import { SessionProvider } from "@/components/SessionProvider"; // Removed as NextAuth is replaced by Supabase
 import { WalletProvider } from "@/components/WalletProvider";
 import { MobileDetectionProvider } from "@/components/MobileDetectionProvider";
+import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Candy Machine",
@@ -27,11 +28,13 @@ export default function RootLayout({
       </head>
       <body>
         {/* <SessionProvider> */}{/* Removed SessionProvider wrapper */}
-          <WalletProvider>
-            <MobileDetectionProvider>
-              {children}
-            </MobileDetectionProvider>
-          </WalletProvider>
+          <Providers>
+            <WalletProvider>
+              <MobileDetectionProvider>
+                {children}
+              </MobileDetectionProvider>
+            </WalletProvider>
+          </Providers>
         {/* </SessionProvider> */}{/* Removed SessionProvider wrapper */}
       </body>
     </html>

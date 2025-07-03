@@ -21,6 +21,7 @@ import {
   deleteVerificationStatus,
   VerificationStatus // Import the interface
 } from '@/lib/indexedDBUtils'; // Import IndexedDB utils
+import { useWalletStore } from '@/store/wallet';
 
 // API helpers for backend DB access
 async function fetchVaultById(vaultId: number) {
@@ -43,7 +44,7 @@ async function updateUserCreditsAPI(walletAddress: string, amount: number, opera
 // Updated to handle new API response with better error handling
 async function awardFreeCreditIfEligibleAPI(vaultId: number, walletAddress: string): Promise<{ eligible: boolean, creditsGained: number, error?: string }> {
   try {
-    // console.log(`[FRONTEND] Requesting free credits for vault ${vaultId}, wallet ${walletAddress}`);
+    // // console.log(`[FRONTEND] Requesting free credits for vault ${vaultId}, wallet ${walletAddress}`);
     
     const res = await fetch('/api/vaults/award-free-credit', {
     method: 'POST',
@@ -52,7 +53,7 @@ async function awardFreeCreditIfEligibleAPI(vaultId: number, walletAddress: stri
     });
     
     const data = await res.json();
-    // console.log(`[FRONTEND] Free credit API response:`, data);
+    // // console.log(`[FRONTEND] Free credit API response:`, data);
     
     if (!res.ok) {
       // Handle specific error cases
@@ -150,6 +151,10 @@ export default function Verify() {
     isVerifiedAndPersisted: isSecondVerifiedAndPersisted 
   } = useTwitterLike();
 
+  const { evmWalletAddress, evmConnected, aptosWalletAddress } = useWalletStore();
+  const [tokenVerificationStatus, setTokenVerificationStatus] = useState<'idle' | 'checking' | 'verified' | 'failed'>('idle');
+  const [extraCreditsAwarded, setExtraCreditsAwarded] = useState(false);
+
   // Get retweet content from vault data, fallback to hardcoded
   const getRetweetContent = () => {
     // Special content for vault 113
@@ -227,6 +232,29 @@ export default function Verify() {
     return selectedVaultId === '111' || selectedVaultId === '112';
   };
 
+  // Helper to get static node amounts for each vault
+  const getStaticNodeAmount = () => {
+    switch (selectedVaultId) {
+      case '113': return 500;
+      case '114': return 942;
+      default: return 0;
+    }
+  };
+
+  // Helper to get dynamic total prize (base prize + static nodes)
+  const getDynamicTotalPrize = () => {
+    if (loading) return 0;
+    const basePrize = parseInt(convertAndFormatAptToUsd(vaultData?.total_prize || 0).replace(/,/g, ''));
+    const nodeAmount = getStaticNodeAmount();
+    return basePrize + nodeAmount;
+  };
+
+  // Helper to get formatted dynamic total prize string
+  const getFormattedDynamicTotalPrize = () => {
+    if (loading) return "$0";
+    return `$${getDynamicTotalPrize().toLocaleString()}`;
+  };
+
   // Helper to get sponsor Twitter ID from vaultData
   const getSponsorTwitterId = () => {
     // Assuming sponsor_links.twitterId is the X (Twitter) user ID (numeric string)
@@ -257,12 +285,12 @@ export default function Verify() {
         
         if (isDataFresh()) { // [ ]
           vault = getPrefetchedVault(vaultId);
-          // console.log('Using prefetched vault data for validation:', vault);
+          // // console.log('Using prefetched vault data for validation:', vault);
         }
         
         // If no prefetched data or data is stale, fetch fresh data
         if (!vault) {
-          // console.log('Fetching fresh vault data for validation');
+          // // console.log('Fetching fresh vault data for validation');
           vault = await fetchVaultById(vaultId);
         }
         
@@ -303,7 +331,7 @@ export default function Verify() {
           if (isDataFresh()) {
             vault = getPrefetchedVault(vaultId);
             if (vault) {
-              // console.log("Using prefetched vault data:", vault);
+              // // console.log("Using prefetched vault data:", vault);
               setVaultData(vault);
               setLoading(false);
               return;
@@ -311,12 +339,12 @@ export default function Verify() {
           }
           
           // Fallback to fresh fetch if no prefetched data
-          // console.log("Fetching fresh vault data");
+          // // console.log("Fetching fresh vault data");
           vault = await fetchVaultById(vaultId);
           if (vault) {
-            // console.log("Loaded fresh vault data:", vault);
-            // console.log("Vault sponsor_links:", vault.sponsor_links);
-            // console.log("Twitter URL from vault:", vault.sponsor_links?.twitter || "Not available");
+            // // console.log("Loaded fresh vault data:", vault);
+            // // console.log("Vault sponsor_links:", vault.sponsor_links);
+            // // console.log("Twitter URL from vault:", vault.sponsor_links?.twitter || "Not available");
             setVaultData(vault);
           } else {
             // console.warn("Failed to load vault data for ID:", selectedVaultId);
@@ -345,56 +373,56 @@ export default function Verify() {
           
           // Check Telegram verification
           if (status?.telegramVerified) {
-            console.log('[UI LOG - TelegramCheck] Telegram already verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - TelegramCheck] Telegram already verified in IndexedDB for vault:', selectedVaultId);
             setTelegramCreditsGranted(true);
             setTelegramCoinsGranted(true);
           } else {
-            console.log('[UI LOG - TelegramCheck] Telegram not verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - TelegramCheck] Telegram not verified in IndexedDB for vault:', selectedVaultId);
             setTelegramCreditsGranted(false);
             setTelegramCoinsGranted(false);
           }
 
           // Check Discord verification
           if (status?.discordVerified) {
-            console.log('[UI LOG - DiscordCheck] Discord already verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - DiscordCheck] Discord already verified in IndexedDB for vault:', selectedVaultId);
             setDiscordCreditsGranted(true);
             setDiscordCoinsGranted(true);
           } else {
-            console.log('[UI LOG - DiscordCheck] Discord not verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - DiscordCheck] Discord not verified in IndexedDB for vault:', selectedVaultId);
             setDiscordCreditsGranted(false);
             setDiscordCoinsGranted(false);
           }
 
           // Check LinkedIn verification
           if (status?.linkedinVerified) {
-            console.log('[UI LOG - LinkedInCheck] LinkedIn already verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - LinkedInCheck] LinkedIn already verified in IndexedDB for vault:', selectedVaultId);
             setLinkedinCreditsGranted(true);
             setLinkedinCoinsGranted(true);
           } else {
-            console.log('[UI LOG - LinkedInCheck] LinkedIn not verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - LinkedInCheck] LinkedIn not verified in IndexedDB for vault:', selectedVaultId);
             setLinkedinCreditsGranted(false);
             setLinkedinCoinsGranted(false);
           }
 
           // Check Extra Link verification
           if (status?.extraLinkVerified) {
-            console.log('[UI LOG - ExtraLinkCheck] Extra Link already verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - ExtraLinkCheck] Extra Link already verified in IndexedDB for vault:', selectedVaultId);
             setExtraLinkCreditsGranted(true);
             setExtraLinkCoinsGranted(true);
           } else {
-            console.log('[UI LOG - ExtraLinkCheck] Extra Link not verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - ExtraLinkCheck] Extra Link not verified in IndexedDB for vault:', selectedVaultId);
             setExtraLinkCreditsGranted(false);
             setExtraLinkCoinsGranted(false);
           }
 
           // Check Cluster Protocol Twitter follow verification
           if (status?.twitterFollowClusterVerified) {
-            console.log('[UI LOG - ClusterFollowCheck] Cluster follow already verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - ClusterFollowCheck] Cluster follow already verified in IndexedDB for vault:', selectedVaultId);
             setIsFollowingCluster(true);
             setClusterCreditsGranted(true);
             setClusterCoinsGranted(true);
           } else {
-            console.log('[UI LOG - ClusterFollowCheck] Cluster follow not verified in IndexedDB for vault:', selectedVaultId);
+            // console.log('[UI LOG - ClusterFollowCheck] Cluster follow not verified in IndexedDB for vault:', selectedVaultId);
             setIsFollowingCluster(false);
             setClusterCreditsGranted(false);
             setClusterCoinsGranted(false);
@@ -402,7 +430,7 @@ export default function Verify() {
 
           // Auto-verify Cluster Protocol follow for specific vault IDs
           if (shouldSkipClusterFollow() && !status?.twitterFollowClusterVerified) {
-            console.log('[UI LOG - ClusterFollowCheck] Auto-verifying Cluster follow for vault:', selectedVaultId);
+            // console.log('[UI LOG - ClusterFollowCheck] Auto-verifying Cluster follow for vault:', selectedVaultId);
             await updateVerificationStatus(selectedVaultId, { twitterFollowClusterVerified: true });
             setIsFollowingCluster(true);
             setClusterCreditsGranted(true);
@@ -410,7 +438,7 @@ export default function Verify() {
           }
         } catch (dbError) {
           console.error('[VerificationCheck] Error reading verification status from IndexedDB:', dbError);
-          console.log('[UI LOG - VerificationCheck] Error reading verification status from IndexedDB for vault:', selectedVaultId);
+          // console.log('[UI LOG - VerificationCheck] Error reading verification status from IndexedDB for vault:', selectedVaultId);
           // Reset all states to false on error
           setTelegramCreditsGranted(false);
           setTelegramCoinsGranted(false);
@@ -442,7 +470,7 @@ export default function Verify() {
         const twitterId = session.user.user_metadata?.provider_id || session.user.identities?.find(id => id.provider === 'twitter')?.id;
         if (twitterId) {
           localStorage.setItem('twitterUserId', twitterId); // TODO move this to index db
-          // console.log("Supabase Twitter User ID stored:", twitterId);
+          // // console.log("Supabase Twitter User ID stored:", twitterId);
         }
       }
       setAuthLoading(false);
@@ -457,7 +485,7 @@ export default function Verify() {
         const twitterId = session.user.user_metadata?.provider_id || session.user.identities?.find(id => id.provider === 'twitter')?.id;
         if (twitterId) {
           localStorage.setItem('twitterUserId', twitterId); // TODO move this to index db
-          // console.log("Supabase Twitter User ID stored (onAuthStateChange):", twitterId);
+          // // console.log("Supabase Twitter User ID stored (onAuthStateChange):", twitterId);
         }
       }
       setAuthLoading(false);
@@ -488,22 +516,22 @@ export default function Verify() {
       try {
         const storedStatus = await getVerificationStatus(selectedVaultId);
         if (storedStatus?.twitterFollowVerified === true) {
-          console.log('[UI LOG - FollowCheck] Twitter follow already verified in IndexedDB for vault:', selectedVaultId);
+          // console.log('[UI LOG - FollowCheck] Twitter follow already verified in IndexedDB for vault:', selectedVaultId);
           setIsFollowing(true);
           setTwitterCoinsGranted(true); // Update UI for coins
           setIsCheckingFollows(false);
           return; // Exit early, no need to call API
         } else {
-          console.log('[UI LOG - FollowCheck] Twitter follow not verified in IndexedDB (or status is false) for vault:', selectedVaultId, '. Proceeding to API check.');
+          // console.log('[UI LOG - FollowCheck] Twitter follow not verified in IndexedDB (or status is false) for vault:', selectedVaultId, '. Proceeding to API check.');
         }
       } catch (dbError) {
         console.error('[FollowCheck] Error reading twitterFollowVerified from IndexedDB:', dbError);
-        console.log('[UI LOG - FollowCheck] Error reading from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
+        // console.log('[UI LOG - FollowCheck] Error reading from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
         // Optionally, handle DB error (e.g., by forcing API check or showing a message)
         // For now, we'll  to API check if DB read fails, similar to cache-miss.
       }
       
-      // console.log('[FollowCheck] Not verified in IndexedDB or DB error, proceeding to API check.');
+      // // console.log('[FollowCheck] Not verified in IndexedDB or DB error, proceeding to API check.');
       // 2. If not verified in DB (or DB error), proceed to API
       const twitterUserId = localStorage.getItem('twitterUserId');
       const sponsorTwitterId = getSponsorTwitterId(); // Relies on vaultData
@@ -542,12 +570,12 @@ export default function Verify() {
               // Check if credits have already been awarded before attempting to award
               const currentStatus = await getVerificationStatus(selectedVaultId);
               if (!currentStatus?.creditsAwarded && walletAddress && selectedVaultId) {
-                console.log(`[FollowCheck] User is following. Attempting to award credits for vault ${selectedVaultId}`);
+                // console.log(`[FollowCheck] User is following. Attempting to award credits for vault ${selectedVaultId}`);
                 const creditResult = await awardFreeCreditIfEligibleAPI(Number(selectedVaultId), walletAddress);
                 if (creditResult.eligible) {
                   setCreditsGranted(true); // Update state based on awardFreeCreditIfEligibleAPI call
                   await updateVerificationStatus(selectedVaultId, { creditsAwarded: true }); // Mark credits as awarded
-                  console.log(`[FollowCheck] Successfully awarded ${creditResult.creditsGained} credits for vault ${selectedVaultId}.`);
+                  // console.log(`[FollowCheck] Successfully awarded ${creditResult.creditsGained} credits for vault ${selectedVaultId}.`);
                 } else {
                   setCreditsGranted(false);
                   console.warn(`[FollowCheck] Credits not awarded for vault ${selectedVaultId}: ${creditResult.error || 'Not eligible (e.g., already claimed)'}`);
@@ -555,7 +583,7 @@ export default function Verify() {
                   // distinct from followError which is about the follow action itself.
                 }
               } else if (currentStatus?.creditsAwarded) {
-                console.log(`[FollowCheck] Credits already awarded for vault ${selectedVaultId}, skipping credit award API call`);
+                // console.log(`[FollowCheck] Credits already awarded for vault ${selectedVaultId}, skipping credit award API call`);
                 setCreditsGranted(true); // Set UI state to show credits already granted
               } else {
                 console.warn("[FollowCheck] Missing walletAddress or selectedVaultId for awarding credits.");
@@ -597,7 +625,7 @@ export default function Verify() {
       } else {
         // Case: No sponsorTwitterId (e.g., vault doesn't require following a specific sponsor)
         // In this scenario, this step is considered automatically verified.
-        // console.log('[FollowCheck] No sponsor Twitter ID for this vault. Auto-verifying follow step.');
+        // // console.log('[FollowCheck] No sponsor Twitter ID for this vault. Auto-verifying follow step.');
         setIsFollowing(true);
         await updateVerificationStatus(selectedVaultId, { twitterFollowVerified: true });
         setTwitterCoinsGranted(true);
@@ -617,7 +645,7 @@ export default function Verify() {
     // Skip Cluster Protocol follow check for specific vault IDs
     if (shouldSkipClusterFollow()) {
       const selectedVaultId = localStorage.getItem('selectedVaultId');
-      console.log('[UI LOG - ClusterFollowCheck] Skipping Cluster follow check for vault:', selectedVaultId);
+      // console.log('[UI LOG - ClusterFollowCheck] Skipping Cluster follow check for vault:', selectedVaultId);
       setIsFollowingCluster(true);
       setClusterCreditsGranted(true);
       setClusterCoinsGranted(true);
@@ -639,17 +667,17 @@ export default function Verify() {
       try {
         const storedStatus = await getVerificationStatus(selectedVaultId);
         if (storedStatus?.twitterFollowClusterVerified === true) {
-          console.log('[UI LOG - ClusterFollowCheck] Cluster follow already verified in IndexedDB for vault:', selectedVaultId);
+          // console.log('[UI LOG - ClusterFollowCheck] Cluster follow already verified in IndexedDB for vault:', selectedVaultId);
           setIsFollowingCluster(true);
           setClusterCoinsGranted(true); // Update UI for coins
           setIsCheckingClusterFollow(false);
           return; // Exit early, no need to call API
         } else {
-          console.log('[UI LOG - ClusterFollowCheck] Cluster follow not verified in IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
+          // console.log('[UI LOG - ClusterFollowCheck] Cluster follow not verified in IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
         }
       } catch (dbError) {
         console.error('[ClusterFollowCheck] Error reading twitterFollowClusterVerified from IndexedDB:', dbError);
-        console.log('[UI LOG - ClusterFollowCheck] Error reading from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
+        // console.log('[UI LOG - ClusterFollowCheck] Error reading from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
       }
       
       // 2. Proceed to API check - hardcoded Cluster Protocol Twitter ID
@@ -682,7 +710,7 @@ export default function Verify() {
 
           if (followData.isFollowing) {
             // User is following Cluster Protocol
-            console.log('[ClusterFollowCheck] User is following Cluster Protocol.');
+            // console.log('[ClusterFollowCheck] User is following Cluster Protocol.');
             await updateVerificationStatus(selectedVaultId, { twitterFollowClusterVerified: true });
             setClusterCoinsGranted(true); // UI update for the follow button coin state
             setClusterCreditsGranted(true); // UI update for button state
@@ -731,16 +759,16 @@ export default function Verify() {
         try {
           const status = await getVerificationStatus(selectedVaultId);
           if (status?.twitterFollowVerified) {
-            console.log('[UI LOG - TwitterFollowInitialCheck] Twitter follow already verified in IndexedDB on mount for vault:', selectedVaultId);
+            // console.log('[UI LOG - TwitterFollowInitialCheck] Twitter follow already verified in IndexedDB on mount for vault:', selectedVaultId);
             setIsFollowing(true); // Update UI state
             setTwitterCoinsGranted(true); // Update UI state for coin text
           } else {
-            console.log('[UI LOG - TwitterFollowInitialCheck] Twitter follow not verified in IndexedDB on mount for vault:', selectedVaultId, '. Main check will run if needed.');
+            // console.log('[UI LOG - TwitterFollowInitialCheck] Twitter follow not verified in IndexedDB on mount for vault:', selectedVaultId, '. Main check will run if needed.');
             setIsFollowing(false); // Ensure it's false if not verified initially
           }
         } catch (dbError) {
           console.error('[TwitterFollowInitialCheck] Error reading twitterFollowVerified from IndexedDB on mount:', dbError);
-          console.log('[UI LOG - TwitterFollowInitialCheck] Error reading Twitter follow status from IndexedDB on mount for vault:', selectedVaultId);
+          // console.log('[UI LOG - TwitterFollowInitialCheck] Error reading Twitter follow status from IndexedDB on mount for vault:', selectedVaultId);
           setIsFollowing(false);
         }
       }
@@ -757,10 +785,10 @@ export default function Verify() {
       const selectedVaultId = localStorage.getItem('selectedVaultId');
       if (selectedVaultId) {
         try {
-          console.log('[UI LOG - LoadAllStates] Attempting to load all verification states from IndexedDB for vault:', selectedVaultId);
+          // console.log('[UI LOG - LoadAllStates] Attempting to load all verification states from IndexedDB for vault:', selectedVaultId);
           const status = await getVerificationStatus(selectedVaultId);
           if (status) {
-            console.log('[UI LOG - LoadAllStates] Found states in IndexedDB:', status);
+            // console.log('[UI LOG - LoadAllStates] Found states in IndexedDB:', status);
             setIsFollowing(status.twitterFollowVerified || false);
             setTelegramCreditsGranted(status.telegramVerified || false);
             setIsTweetVerified(status.tweetPostedVerified || false);
@@ -783,17 +811,17 @@ export default function Verify() {
             // Check if credits were already awarded and set the state accordingly
             if (status.creditsAwarded) {
               setCreditsGranted(true);
-              console.log(`[UI LOG - LoadAllStates] Credits already awarded for vault: ${selectedVaultId}`);
+              // console.log(`[UI LOG - LoadAllStates] Credits already awarded for vault: ${selectedVaultId}`);
             } else {
               setCreditsGranted(false);
             }
 
             // Log individual statuses found
-            console.log(`[UI LOG - LoadAllStates] From DB - TwitterFollow: ${status.twitterFollowVerified}, Telegram: ${status.telegramVerified}, TweetPosted: ${status.tweetPostedVerified}, Retweet: ${status.retweetVerified}, TwitterLike: ${status.twitterLikeVerified}, Discord: ${status.discordVerified}, LinkedIn: ${status.linkedinVerified}, ExtraLink: ${status.extraLinkVerified}, CreditsAwarded: ${status.creditsAwarded}`);
+            // console.log(`[UI LOG - LoadAllStates] From DB - TwitterFollow: ${status.twitterFollowVerified}, Telegram: ${status.telegramVerified}, TweetPosted: ${status.tweetPostedVerified}, Retweet: ${status.retweetVerified}, TwitterLike: ${status.twitterLikeVerified}, Discord: ${status.discordVerified}, LinkedIn: ${status.linkedinVerified}, ExtraLink: ${status.extraLinkVerified}, CreditsAwarded: ${status.creditsAwarded}`);
 
             // Auto-verify Cluster Protocol follow for specific vault IDs if not already verified
             if (shouldSkipClusterFollow() && !status.twitterFollowClusterVerified) {
-              console.log('[UI LOG - LoadAllStates] Auto-verifying Cluster follow for vault:', selectedVaultId);
+              // console.log('[UI LOG - LoadAllStates] Auto-verifying Cluster follow for vault:', selectedVaultId);
               await updateVerificationStatus(selectedVaultId, { twitterFollowClusterVerified: true });
               setIsFollowingCluster(true);
               setClusterCreditsGranted(true);
@@ -806,7 +834,7 @@ export default function Verify() {
             }
 
           } else {
-            console.log('[UI LOG - LoadAllStates] No states found in IndexedDB for vault:', selectedVaultId, '. Resetting UI states.');
+            // console.log('[UI LOG - LoadAllStates] No states found in IndexedDB for vault:', selectedVaultId, '. Resetting UI states.');
             // If no status in DB, reset all relevant UI states to false
             setIsFollowing(false);
             setTelegramCreditsGranted(false);
@@ -823,7 +851,7 @@ export default function Verify() {
 
             // Auto-verify Cluster Protocol follow for specific vault IDs even when no states exist
             if (shouldSkipClusterFollow()) {
-              console.log('[UI LOG - LoadAllStates] Auto-verifying Cluster follow for vault (no existing states):', selectedVaultId);
+              // console.log('[UI LOG - LoadAllStates] Auto-verifying Cluster follow for vault (no existing states):', selectedVaultId);
               await updateVerificationStatus(selectedVaultId, { twitterFollowClusterVerified: true });
               setIsFollowingCluster(true);
               setClusterCreditsGranted(true);
@@ -836,7 +864,7 @@ export default function Verify() {
           }
         } catch (dbError) {
           console.error('[LoadAllStates] Error loading states from IndexedDB:', dbError);
-          console.log('[UI LOG - LoadAllStates] Error loading states from IndexedDB for vault:', selectedVaultId, '. UI states may not be accurate.');
+          // console.log('[UI LOG - LoadAllStates] Error loading states from IndexedDB for vault:', selectedVaultId, '. UI states may not be accurate.');
           // Potentially reset states here as well if DB is crucial and fails
           setIsFollowing(false);
           setTelegramCreditsGranted(false);
@@ -853,7 +881,7 @@ export default function Verify() {
 
           // Auto-verify Cluster Protocol follow for specific vault IDs even on DB error
           if (shouldSkipClusterFollow()) {
-            console.log('[UI LOG - LoadAllStates] Auto-verifying Cluster follow for vault (DB error):', selectedVaultId);
+            // console.log('[UI LOG - LoadAllStates] Auto-verifying Cluster follow for vault (DB error):', selectedVaultId);
             setIsFollowingCluster(true);
             setClusterCreditsGranted(true);
             setClusterCoinsGranted(true);
@@ -894,20 +922,20 @@ export default function Verify() {
       try {
         const storedStatus = await getVerificationStatus(selectedVaultId);
         if (storedStatus?.tweetPostedVerified === true) {
-          console.log('[UI LOG - TweetCheck] Tweet already verified in IndexedDB for vault:', selectedVaultId);
+          // console.log('[UI LOG - TweetCheck] Tweet already verified in IndexedDB for vault:', selectedVaultId);
           setIsTweetVerified(true);
           setIsCheckingTweet(false);
           return; // Exit early
         } else {
-          console.log('[UI LOG - TweetCheck] Tweet not verified in IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
+          // console.log('[UI LOG - TweetCheck] Tweet not verified in IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
         }
       } catch (dbError) {
         console.error('[TweetCheck] Error reading tweetPostedVerified from IndexedDB:', dbError);
-        console.log('[UI LOG - TweetCheck] Error reading Tweet status from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
+        // console.log('[UI LOG - TweetCheck] Error reading Tweet status from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check.');
       }
 
       // 2. Proceed to API check
-      // console.log('[UI LOG - TweetCheck] Proceeding to API check for tweet status for vault:', selectedVaultId);
+      // // console.log('[UI LOG - TweetCheck] Proceeding to API check for tweet status for vault:', selectedVaultId);
       try {
         const response = await fetch('/api/twittertweets', {
           method: 'POST',
@@ -920,18 +948,18 @@ export default function Verify() {
         });
         const data = await response.json();
         if (data.success && data.hasMatchingTweet) {
-          console.log('[UI LOG - TweetCheck] Tweet verified via API for vault:', selectedVaultId);
+          // console.log('[UI LOG - TweetCheck] Tweet verified via API for vault:', selectedVaultId);
           setIsTweetVerified(true);
           await updateVerificationStatus(selectedVaultId, { tweetPostedVerified: true });
         } else {
-          console.log('[UI LOG - TweetCheck] Tweet not verified via API for vault:', selectedVaultId, 'API Response:', data);
+          // console.log('[UI LOG - TweetCheck] Tweet not verified via API for vault:', selectedVaultId, 'API Response:', data);
           setIsTweetVerified(false);
           await updateVerificationStatus(selectedVaultId, { tweetPostedVerified: false });
           setTweetError(data.error || 'Required tweet not found.');
         }
       } catch (error) {
         console.error('[TweetCheck] API call failed:', error);
-        console.log('[UI LOG - TweetCheck] Tweet verification API call failed for vault:', selectedVaultId);
+        // console.log('[UI LOG - TweetCheck] Tweet verification API call failed for vault:', selectedVaultId);
         setTweetError('Failed to verify tweet');
         setIsTweetVerified(false);
         if (selectedVaultId) await updateVerificationStatus(selectedVaultId, { tweetPostedVerified: false });
@@ -970,7 +998,7 @@ export default function Verify() {
   const handleTelegramJoin = async () => {
     const telegramUrl = getTelegramUrl();
     if (!telegramUrl) {
-      // console.log("No Telegram URL provided for this vault");
+      // // console.log("No Telegram URL provided for this vault");
       return;
     }
     setTelegramProcessing(true);
@@ -992,7 +1020,7 @@ export default function Verify() {
   const handleDiscordJoin = async () => {
     const discordUrl = getDiscordUrl();
     if (!discordUrl) {
-      // console.log("No Discord URL provided for this vault");
+      // // console.log("No Discord URL provided for this vault");
       return;
     }
     setDiscordProcessing(true);
@@ -1013,7 +1041,7 @@ export default function Verify() {
   const handleLinkedInJoin = async () => {
     const linkedinUrl = getLinkedInUrl();
     if (!linkedinUrl) {
-      // console.log("No LinkedIn URL provided for this vault");
+      // // console.log("No LinkedIn URL provided for this vault");
       return;
     }
     setLinkedinProcessing(true);
@@ -1034,7 +1062,7 @@ export default function Verify() {
   const handleExtraLinkJoin = async () => {
     const extraLinkUrl = getExtraLinkUrl();
     if (!extraLinkUrl) {
-      // console.log("No Extra Link URL provided for this vault");
+      // // console.log("No Extra Link URL provided for this vault");
       return;
     }
     setExtraLinkProcessing(true);
@@ -1059,15 +1087,15 @@ export default function Verify() {
         window.open(twitterUrl, "_blank");
       }
     } else {
-      // console.log("[Supabase Auth] Attempting to sign in with Twitter.");
+      // // console.log("[Supabase Auth] Attempting to sign in with Twitter.");
       const supabaseClient = createClient();
-      // console.log("[Supabase Auth] Supabase client initialized:", supabaseClient ? 'Client OK' : 'Client FAILED');
+      // // console.log("[Supabase Auth] Supabase client initialized:", supabaseClient ? 'Client OK' : 'Client FAILED');
       
       const redirectTo = `${window.location.origin}/auth/callback`;
-      // console.log("[Supabase Auth] Redirect URL for OAuth:", redirectTo);
+      // // console.log("[Supabase Auth] Redirect URL for OAuth:", redirectTo);
 
       try {
-        // console.log("[Supabase Auth] About to call signInWithOAuth...");
+        // // console.log("[Supabase Auth] About to call signInWithOAuth...");
         const result = await supabaseClient.auth.signInWithOAuth({
           provider: 'twitter',
           options: {
@@ -1075,15 +1103,15 @@ export default function Verify() {
           },
         });
 
-        // console.log("[Supabase Auth] signInWithOAuth result:", result);
+        // // console.log("[Supabase Auth] signInWithOAuth result:", result);
 
         if (result.error) {
           // console.error("[Supabase Auth] Error during signInWithOAuth call:", result.error);
           setFollowError(`Failed to connect with X: ${result.error.message}`);
         } else {
-          // console.log("[Supabase Auth] signInWithOAuth successful, checking data:", result.data);
+          // // console.log("[Supabase Auth] signInWithOAuth successful, checking data:", result.data);
           if (result.data && result.data.url) {
-            // console.log("[Supabase Auth] OAuth URL generated:", result.data.url);
+            // // console.log("[Supabase Auth] OAuth URL generated:", result.data.url);
             // The URL should look like: https://bolnsjszdtkiehgojpbw.supabase.co/auth/v1/authorize?provider=twitter&...
             window.location.href = result.data.url;
           } else {
@@ -1101,7 +1129,7 @@ export default function Verify() {
   const handleClusterTwitterAuth = async () => {
     // Skip action for specific vault IDs
     if (shouldSkipClusterFollow()) {
-      console.log('[UI LOG - ClusterFollowAuth] Skipping Cluster Protocol follow action for vault:', selectedVaultId);
+      // console.log('[UI LOG - ClusterFollowAuth] Skipping Cluster Protocol follow action for vault:', selectedVaultId);
       return;
     }
 
@@ -1343,29 +1371,29 @@ export default function Verify() {
       
       // DEBUG: Log verification status for vault 114
       if (selectedVaultId === '114') {
-        console.log('[DEBUG Vault 114] Verification Status:');
-        console.log('- isFollowing:', isFollowing);
-        console.log('- isFollowingCluster:', isFollowingCluster);
-        console.log('- telegramCreditsGranted:', telegramCreditsGranted);
-        console.log('- isRetweetVerified:', isRetweetVerified);
-        console.log('- hasLikedTweet:', hasLikedTweet);
-        console.log('- tweetStepNeeded:', tweetStepNeeded);
-        console.log('- discordStepNeeded:', discordStepNeeded);
-        console.log('- linkedinStepNeeded:', linkedinStepNeeded);
-        console.log('- extraLinkStepNeeded:', extraLinkStepNeeded);
-        console.log('- Base completed:', completed);
+        // console.log('[DEBUG Vault 114] Verification Status:');
+        // console.log('- isFollowing:', isFollowing);
+        // console.log('- isFollowingCluster:', isFollowingCluster);
+        // console.log('- telegramCreditsGranted:', telegramCreditsGranted);
+        // console.log('- isRetweetVerified:', isRetweetVerified);
+        // console.log('- hasLikedTweet:', hasLikedTweet);
+        // console.log('- tweetStepNeeded:', tweetStepNeeded);
+        // console.log('- discordStepNeeded:', discordStepNeeded);
+        // console.log('- linkedinStepNeeded:', linkedinStepNeeded);
+        // console.log('- extraLinkStepNeeded:', extraLinkStepNeeded);
+        // console.log('- Base completed:', completed);
         
         if (tweetStepNeeded) {
-          console.log('- isTweetVerified:', isTweetVerified);
+          // console.log('- isTweetVerified:', isTweetVerified);
         }
         if (discordStepNeeded) {
-          console.log('- discordCreditsGranted:', discordCreditsGranted);
+          // console.log('- discordCreditsGranted:', discordCreditsGranted);
         }
         if (linkedinStepNeeded) {
-          console.log('- linkedinCreditsGranted:', linkedinCreditsGranted);
+          // console.log('- linkedinCreditsGranted:', linkedinCreditsGranted);
         }
         if (extraLinkStepNeeded) {
-          console.log('- extraLinkCreditsGranted:', extraLinkCreditsGranted);
+          // console.log('- extraLinkCreditsGranted:', extraLinkCreditsGranted);
         }
       }
       
@@ -1389,8 +1417,8 @@ export default function Verify() {
       
       // DEBUG: Log final completion status for vault 114
       if (selectedVaultId === '114') {
-        console.log('- Final completed status:', completed);
-        console.log('========================');
+        // console.log('- Final completed status:', completed);
+        // console.log('========================');
       }
       
       setAllStepsComplete(completed);
@@ -1414,15 +1442,15 @@ export default function Verify() {
       try {
         const storedStatus = await getVerificationStatus(selectedVaultId);
         if (storedStatus?.retweetVerified === true) {
-          console.log('[UI LOG - RetweetCheck] Retweet already verified in IndexedDB for vault:', selectedVaultId);
+          // console.log('[UI LOG - RetweetCheck] Retweet already verified in IndexedDB for vault:', selectedVaultId);
           setIsRetweetVerified(true);
           // If already verified from DB, no need to call API or set loading state for API call
           return; 
         }
-        // console.log('[UI LOG - RetweetCheck] Retweet not verified in IndexedDB for vault:', selectedVaultId, '. Proceeding to API check if needed.');
+        // // console.log('[UI LOG - RetweetCheck] Retweet not verified in IndexedDB for vault:', selectedVaultId, '. Proceeding to API check if needed.');
       } catch (dbError) {
         console.error('[RetweetCheck] Error reading retweetVerified from IndexedDB:', dbError);
-        console.log('[UI LOG - RetweetCheck] Error reading Retweet status from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check if needed.');
+        // console.log('[UI LOG - RetweetCheck] Error reading Retweet status from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check if needed.');
         // Fall through to API check if DB read fails
       }
 
@@ -1432,12 +1460,12 @@ export default function Verify() {
       if (isRetweetVerified) {
         // This case can happen if loadStatesFromDB ran after the initial DB check in this effect but before API call was made.
         // Or if this effect re-runs and isRetweetVerified is already true.
-        console.log('[UI LOG - RetweetCheck] isRetweetVerified state is already true, skipping API call for vault:', selectedVaultId);
+        // console.log('[UI LOG - RetweetCheck] isRetweetVerified state is already true, skipping API call for vault:', selectedVaultId);
         return;
       }
 
       // 2. Proceed to API check
-      // console.log('[UI LOG - RetweetCheck] Proceeding to API check for retweet for vault:', selectedVaultId);
+      // // console.log('[UI LOG - RetweetCheck] Proceeding to API check for retweet for vault:', selectedVaultId);
       if (!user) { 
         // console.warn("[RetweetCheck] No Supabase user for API check.");
         setIsCheckingRetweet(false);
@@ -1466,18 +1494,18 @@ export default function Verify() {
         });
         const data = await response.json();
         if (data.success && data.hasRetweet) {
-          console.log('[UI LOG - RetweetCheck] Retweet verified via API for vault:', selectedVaultId);
+          // console.log('[UI LOG - RetweetCheck] Retweet verified via API for vault:', selectedVaultId);
           setIsRetweetVerified(true);
           await updateVerificationStatus(selectedVaultId, { retweetVerified: true });
         } else {
-          console.log('[UI LOG - RetweetCheck] Retweet not verified via API for vault:', selectedVaultId, 'API Response:', data);
+          // console.log('[UI LOG - RetweetCheck] Retweet not verified via API for vault:', selectedVaultId, 'API Response:', data);
           setIsRetweetVerified(false);
           await updateVerificationStatus(selectedVaultId, { retweetVerified: false });
           setRetweetError(data.error || 'Required retweet not found.');
         }
       } catch (error) {
         console.error('[RetweetCheck] API call failed:', error);
-        console.log('[UI LOG - RetweetCheck] Retweet verification API call failed for vault:', selectedVaultId);
+        // console.log('[UI LOG - RetweetCheck] Retweet verification API call failed for vault:', selectedVaultId);
         setRetweetError('Failed to verify retweet');
         setIsRetweetVerified(false);
         if (selectedVaultId) await updateVerificationStatus(selectedVaultId, { retweetVerified: false });
@@ -1502,18 +1530,18 @@ export default function Verify() {
       try {
         const storedStatus = await getVerificationStatus(selectedVaultId);
         if (storedStatus?.secondRetweetVerified === true) {
-          console.log('[UI LOG - SecondRetweetCheck] Second retweet already verified in IndexedDB for vault:', selectedVaultId);
+          // console.log('[UI LOG - SecondRetweetCheck] Second retweet already verified in IndexedDB for vault:', selectedVaultId);
           setIsSecondRetweetVerified(true);
           return; 
         }
       } catch (dbError) {
         console.error('[SecondRetweetCheck] Error reading secondRetweetVerified from IndexedDB:', dbError);
-        console.log('[UI LOG - SecondRetweetCheck] Error reading Second Retweet status from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check if needed.');
+        // console.log('[UI LOG - SecondRetweetCheck] Error reading Second Retweet status from IndexedDB for vault:', selectedVaultId, '. Proceeding to API check if needed.');
       }
 
       // Only proceed to API check if not already verified from DB
       if (isSecondRetweetVerified) {
-        console.log('[UI LOG - SecondRetweetCheck] isSecondRetweetVerified state is already true, skipping API call for vault:', selectedVaultId);
+        // console.log('[UI LOG - SecondRetweetCheck] isSecondRetweetVerified state is already true, skipping API call for vault:', selectedVaultId);
         return;
       }
 
@@ -1544,18 +1572,18 @@ export default function Verify() {
         });
         const data = await response.json();
         if (data.success && data.hasRetweet) {
-          console.log('[UI LOG - SecondRetweetCheck] Second retweet verified via API for vault:', selectedVaultId);
+          // console.log('[UI LOG - SecondRetweetCheck] Second retweet verified via API for vault:', selectedVaultId);
           setIsSecondRetweetVerified(true);
           await updateVerificationStatus(selectedVaultId, { secondRetweetVerified: true });
         } else {
-          console.log('[UI LOG - SecondRetweetCheck] Second retweet not verified via API for vault:', selectedVaultId, 'API Response:', data);
+          // console.log('[UI LOG - SecondRetweetCheck] Second retweet not verified via API for vault:', selectedVaultId, 'API Response:', data);
           setIsSecondRetweetVerified(false);
           await updateVerificationStatus(selectedVaultId, { secondRetweetVerified: false });
           setSecondRetweetError(data.error || 'Required second retweet not found.');
         }
       } catch (error) {
         console.error('[SecondRetweetCheck] API call failed:', error);
-        console.log('[UI LOG - SecondRetweetCheck] Second retweet verification API call failed for vault:', selectedVaultId);
+        // console.log('[UI LOG - SecondRetweetCheck] Second retweet verification API call failed for vault:', selectedVaultId);
         setSecondRetweetError('Failed to verify second retweet');
         setIsSecondRetweetVerified(false);
         if (selectedVaultId) await updateVerificationStatus(selectedVaultId, { secondRetweetVerified: false });
@@ -1573,7 +1601,7 @@ export default function Verify() {
     // If we have errors and the user is authenticated, allow them to retry after 3 seconds
     if ((retweetError || likeError || secondRetweetError || secondLikeError) && user && !isCheckingRetweet && !isCheckingLike && !isCheckingSecondRetweet && !isCheckingSecondLike) {
       const timer = setTimeout(() => {
-        // console.log('[Recovery] Clearing errors to allow retry');
+        // // console.log('[Recovery] Clearing errors to allow retry');
         setRetweetError(null);
         clearLikeError();
         setSecondRetweetError(null);
@@ -1619,7 +1647,7 @@ export default function Verify() {
              // For now, if `useTwitterLike` correctly sets `hasLikedTweet`, that's enough for the UI.
              // If we need to explicitly store our own "twitterLikeVerified" flag based on this:
              await updateVerificationStatus(selectedVaultId, { twitterLikeVerified: true });
-             console.log('[LikeCheck] Mock like successful, updated twitterLikeVerified in IndexedDB.');
+             // console.log('[LikeCheck] Mock like successful, updated twitterLikeVerified in IndexedDB.');
           } else if (!mockResult && selectedVaultId) {
             // If mock like failed, ensure it's false in DB
             await updateVerificationStatus(selectedVaultId, { twitterLikeVerified: false });
@@ -1703,7 +1731,7 @@ export default function Verify() {
       setLinkedinCoinsGranted(false);
       setExtraLinkCoinsGranted(false);
       setCreditsGranted(false); // Reset credits granted state
-      console.log('[ManualRetry] Cleared IndexedDB state for vault and reset UI states:', selectedVaultId);
+      // console.log('[ManualRetry] Cleared IndexedDB state for vault and reset UI states:', selectedVaultId);
     }
   };
 
@@ -1713,17 +1741,17 @@ export default function Verify() {
     if (selectedVaultId && user) { // Only update if vault and user exist
         // Assuming `hasLikedTweet` reflects a verified or mock-verified state from the hook.
         if (hasLikedTweet !== undefined) { // Check if hasLikedTweet has been explicitly set by the hook
-            console.log(`[UI LOG - LikeSync] Attempting to sync hasLikedTweet (${hasLikedTweet}) to twitterLikeVerified in IndexedDB for vault: ${selectedVaultId}`);
+            // console.log(`[UI LOG - LikeSync] Attempting to sync hasLikedTweet (${hasLikedTweet}) to twitterLikeVerified in IndexedDB for vault: ${selectedVaultId}`);
             updateVerificationStatus(selectedVaultId, { twitterLikeVerified: hasLikedTweet })
             .then(() => {
-              console.log(`[UI LOG - LikeSync] Successfully updated twitterLikeVerified to ${hasLikedTweet} in IndexedDB for vault: ${selectedVaultId}`);
+              // console.log(`[UI LOG - LikeSync] Successfully updated twitterLikeVerified to ${hasLikedTweet} in IndexedDB for vault: ${selectedVaultId}`);
             })
             .catch(err => {
               console.error("[LikeSync] Failed to update twitterLikeVerified in IndexedDB:", err);
-              console.log(`[UI LOG - LikeSync] Failed to update twitterLikeVerified in IndexedDB for vault: ${selectedVaultId}. Error: ${err.message}`);
+              // console.log(`[UI LOG - LikeSync] Failed to update twitterLikeVerified in IndexedDB for vault: ${selectedVaultId}. Error: ${err.message}`);
             });
         } else {
-          // console.log('[UI LOG - LikeSync] hasLikedTweet is undefined, no sync to IndexedDB for vault:', selectedVaultId);
+          // // console.log('[UI LOG - LikeSync] hasLikedTweet is undefined, no sync to IndexedDB for vault:', selectedVaultId);
         }
     }
   }, [hasLikedTweet, user, lastChecked]); // lastChecked from useTwitterLike indicates a fresh check 
@@ -1734,14 +1762,14 @@ export default function Verify() {
     const selectedVaultId = localStorage.getItem('selectedVaultId');
     if (selectedVaultId && user && (selectedVaultId === '113' || selectedVaultId === '114')) { // For vault 113 and 114
         if (hasLikedSecondTweet !== undefined) {
-            console.log(`[UI LOG - SecondLikeSync] Attempting to sync hasLikedSecondTweet (${hasLikedSecondTweet}) to secondTwitterLikeVerified in IndexedDB for vault: ${selectedVaultId}`);
+            // console.log(`[UI LOG - SecondLikeSync] Attempting to sync hasLikedSecondTweet (${hasLikedSecondTweet}) to secondTwitterLikeVerified in IndexedDB for vault: ${selectedVaultId}`);
             updateVerificationStatus(selectedVaultId, { secondTwitterLikeVerified: hasLikedSecondTweet })
             .then(() => {
-              console.log(`[UI LOG - SecondLikeSync] Successfully updated secondTwitterLikeVerified to ${hasLikedSecondTweet} in IndexedDB for vault: ${selectedVaultId}`);
+              // console.log(`[UI LOG - SecondLikeSync] Successfully updated secondTwitterLikeVerified to ${hasLikedSecondTweet} in IndexedDB for vault: ${selectedVaultId}`);
             })
             .catch(err => {
               console.error("[SecondLikeSync] Failed to update secondTwitterLikeVerified in IndexedDB:", err);
-              console.log(`[UI LOG - SecondLikeSync] Failed to update secondTwitterLikeVerified in IndexedDB for vault: ${selectedVaultId}. Error: ${err.message}`);
+              // console.log(`[UI LOG - SecondLikeSync] Failed to update secondTwitterLikeVerified in IndexedDB for vault: ${selectedVaultId}. Error: ${err.message}`);
             });
         }
     }
@@ -1803,7 +1831,7 @@ export default function Verify() {
           const mockResult = await mockSecondLikeAction(tweetId);
           if (mockResult && selectedVaultId) {
              await updateVerificationStatus(selectedVaultId, { secondTwitterLikeVerified: true });
-             console.log('[SecondLikeCheck] Mock like successful, updated secondTwitterLikeVerified in IndexedDB.');
+             // console.log('[SecondLikeCheck] Mock like successful, updated secondTwitterLikeVerified in IndexedDB.');
           } else if (!mockResult && selectedVaultId) {
             await updateVerificationStatus(selectedVaultId, { secondTwitterLikeVerified: false });
           }
@@ -1812,6 +1840,78 @@ export default function Verify() {
           if (selectedVaultId) await updateVerificationStatus(selectedVaultId, { secondTwitterLikeVerified: false });
         }
       }
+    }
+  };
+
+  const checkTokenRequirements = async (vaultData: any) => {
+    if (!vaultData || vaultData.blockchain !== 'ethereum') {
+      return { verified: true, message: 'No EVM token requirements' };
+    }
+
+    if (!evmWalletAddress) {
+      return { verified: false, message: 'Please connect your Ethereum wallet' };
+    }
+
+    setTokenVerificationStatus('checking');
+
+    try {
+      const response = await fetch('/api/check-token-holding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chain: 'ethereum',
+          userAddress: evmWalletAddress,
+          tokenType: vaultData.required_token_type || 'native',
+          tokenAddress: vaultData.required_token_address,
+          amount: vaultData.required_amount?.toString() || '0.2'
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.valid) {
+        setTokenVerificationStatus('verified');
+        
+        // Award extra credits if not already awarded
+        if (!extraCreditsAwarded) {
+          try {
+            const creditsResponse = await fetch('/api/award-extra-credits', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                vaultId: Number(selectedVaultId),
+                userAddress: evmWalletAddress,
+                chain: 'ethereum'
+              })
+            });
+            
+            const creditsResult = await creditsResponse.json();
+            if (creditsResult.success && creditsResult.creditsAwarded > 0) {
+              setExtraCreditsAwarded(true);
+              return { 
+                verified: true, 
+                message: `✅ Token requirements met! Awarded ${creditsResult.creditsAwarded} extra credits for holding ${vaultData.required_amount} ${vaultData.required_token_type === 'native' ? 'Sepolia ETH' : 'tokens'}!` 
+              };
+            }
+          } catch (error) {
+            console.error('Error awarding extra credits:', error);
+          }
+        }
+        
+        return { 
+          verified: true, 
+          message: `✅ Token requirements verified! You have ${result.balance} ${vaultData.required_token_type === 'native' ? 'Sepolia ETH' : 'tokens'}` 
+        };
+      } else {
+        setTokenVerificationStatus('failed');
+        return { 
+          verified: false, 
+          message: `❌ Insufficient tokens. Required: ${vaultData.required_amount} ${vaultData.required_token_type === 'native' ? 'Sepolia ETH' : 'tokens'}, You have: ${result.balance || '0'}` 
+        };
+      }
+    } catch (error) {
+      setTokenVerificationStatus('failed');
+      return { verified: false, message: '❌ Error checking token requirements' };
     }
   };
 
@@ -1927,7 +2027,7 @@ export default function Verify() {
                   }}
                   onError={(e) => {
                     console.error('Image failed to load:', e);
-                    console.log('Attempted to load:', 
+                     console.log('Attempted to load:', 
                       selectedVaultId === '113' 
                         ? "/dfusion/mascoty2.png" 
                         : selectedVaultId === '114' 
@@ -1944,31 +2044,16 @@ export default function Verify() {
                   Complete these steps <br /> to proceed to the vault
                 </p>
                 
-                {/* Conditional price display for vault 113 and 114 */}
-                {selectedVaultId === '113' ? (
+                {/* Dynamic price display with static node values */}
+                {getStaticNodeAmount() > 0 ? (
                   <div className="flex flex-col items-center">
                     <div className={`${getVaultTextColor()} text-5xl md:text-6xl font-bold mb-1`}>
-                      {loading
-                        ? "$0"
-                        : `$${(parseInt(convertAndFormatAptToUsd(vaultData?.total_prize || 0).replace(/,/g, '')) + 500).toLocaleString()}`}
+                      {getFormattedDynamicTotalPrize()}
                     </div>
-                    <div className="text-yellow-400 text-lg md:text-xl font-medium">
+                    <div className={`${selectedVaultId === '113' ? 'text-yellow-400' : 'text-green-400'} text-lg md:text-xl font-medium`}>
                       {loading
                         ? "Loading..."
-                        : `($${convertAndFormatAptToUsd(vaultData?.total_prize || 0)} + $500 nodes)`}
-                    </div>
-                  </div>
-                ) : selectedVaultId === '114' ? (
-                  <div className="flex flex-col items-center">
-                    <div className={`${getVaultTextColor()} text-5xl md:text-6xl font-bold mb-1`}>
-                      {loading
-                        ? "$0"
-                        : `$${(parseInt(convertAndFormatAptToUsd(vaultData?.total_prize || 0).replace(/,/g, '')) + 700).toLocaleString()}`}
-                    </div>
-                    <div className="text-green-400 text-lg md:text-xl font-medium">
-                      {loading
-                        ? "Loading..."
-                        : `($${convertAndFormatAptToUsd(vaultData?.total_prize || 0)} + $700 nodes)`}
+                        : `($${convertAndFormatAptToUsd(vaultData?.total_prize || 0)} + $${getStaticNodeAmount()} nodes)`}
                     </div>
                   </div>
                 ) : (

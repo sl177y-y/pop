@@ -1,5 +1,6 @@
 /**
  * Utility for handling credit purchases using Aptos blockchain
+ * FINAL VERSION - NO DEFAULT ADDRESS ANYWHERE
  */
 const VAULT_RECIPIENT_CONFIG = {
   111: {
@@ -21,28 +22,29 @@ const VAULT_RECIPIENT_CONFIG = {
 };
 
 /**
- * Get recipient address for a specific vault
+ * Get recipient address for a specific vault - NO DEFAULT ADDRESS!
  */
 function getRecipientAddressForVault(vaultId) {
-  const defaultAddress = "0xe020c2335af333a2e3d6a7930c14cf89727b28b5d4f5849228bb2c169d041c95";
+  // ✅ NO DEFAULT ADDRESS VARIABLE AT ALL!
   
   if (!vaultId) {
-    console.log('No vault ID provided, using default recipient address');
-    return defaultAddress;
+    console.log('❌ No vault ID provided - TRANSACTION WILL FAIL');
+    return null; // ✅ Return null instead of default
   }
 
   const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
   
   if (isNaN(numericVaultId)) {
-    console.log('Invalid vault ID, using default recipient address');
-    return defaultAddress;
+    console.log('❌ Invalid vault ID - TRANSACTION WILL FAIL');
+    return null; // ✅ Return null instead of default
   }
 
   const vaultConfig = VAULT_RECIPIENT_CONFIG[numericVaultId];
   
   if (!vaultConfig) {
-    console.log(`No recipient configuration found for vault ${numericVaultId}, using default address`);
-    return defaultAddress;
+    console.log(`❌ No recipient configuration found for vault ${numericVaultId} - TRANSACTION WILL FAIL`);
+    console.log(`Available vaults: ${Object.keys(VAULT_RECIPIENT_CONFIG).join(', ')}`);
+    return null; // ✅ Return null instead of default
   }
 
   console.log(`✅ Using ${vaultConfig.description} recipient: ${vaultConfig.address}`);
@@ -54,8 +56,8 @@ export interface CreditPurchaseParams {
   buyAmount: number;
   /** Cost per credit in APT */
   costPerCredit?: number;
-  /** Vault ID to determine recipient address */
-  vaultId?: number | string;
+  /** Vault ID to determine recipient address - REQUIRED! */
+  vaultId: number | string; // ✅ Made required (removed ?)
   /** Recipient wallet address (will be auto-determined by vaultId if not provided) */
   recipientAddress?: string;
   /** Current credit balance */
@@ -72,6 +74,7 @@ export interface CreditPurchaseParams {
 
 /**
  * Purchases credits using APT tokens on the Aptos blockchain
+ * WILL FAIL IF NO VALID VAULT ID PROVIDED
  */
 export async function purchaseCredits({
   buyAmount,
@@ -89,11 +92,40 @@ export async function purchaseCredits({
   success: boolean 
 }> {
   try {
+    console.log(`🔍 DEBUG: vaultId provided = ${vaultId}`);
+    console.log(`🔍 DEBUG: recipientAddress provided = ${recipientAddress}`);
+    
+    // ✅ STRICT VALIDATION - NO DEFAULT FALLBACK
+    if (!recipientAddress && !vaultId) {
+      const errorMsg = "❌ CRITICAL: No vaultId or recipientAddress provided!";
+      console.error(errorMsg);
+      if (displayMessage) displayMessage("Error: Vault ID is required for this transaction.");
+      if (handleError) handleError(new Error(errorMsg));
+      return { newCredits: currentCredits, success: false };
+    }
+    
     // Determine recipient address based on vaultId or use provided address
-    const finalRecipientAddress = recipientAddress || getRecipientAddressForVault(vaultId);
+    let finalRecipientAddress = recipientAddress;
+    
+    if (!finalRecipientAddress) {
+      console.log(`🔍 DEBUG: Getting address for vault ${vaultId}`);
+      finalRecipientAddress = getRecipientAddressForVault(vaultId);
+      
+      // ✅ STRICT CHECK - FAIL IF NO ADDRESS FOUND
+      if (!finalRecipientAddress) {
+        const errorMsg = `❌ CRITICAL: Could not get address for vault ${vaultId}!`;
+        console.error(errorMsg);
+        if (displayMessage) {
+          displayMessage(`Error: Invalid vault ID (${vaultId}). Available vaults: ${Object.keys(VAULT_RECIPIENT_CONFIG).join(', ')}`);
+        }
+        if (handleError) handleError(new Error(errorMsg));
+        return { newCredits: currentCredits, success: false };
+      }
+    }
     
     console.log(`💰 Processing credit purchase for vault ${vaultId}`);
-    console.log(`🎯 Recipient address: ${finalRecipientAddress}`);
+    console.log(`🎯 Final recipient address: ${finalRecipientAddress}`);
+    console.log(`🔍 DEBUG: This should match vault ${vaultId} address: ${VAULT_RECIPIENT_CONFIG[vaultId]?.address}`);
     
     // Calculate total cost in APT
     const amount = buyAmount * costPerCredit;
@@ -136,6 +168,8 @@ export async function purchaseCredits({
       },
     };
 
+    console.log(`🔍 DEBUG: Transaction will send ${amount} APT to ${finalRecipientAddress}`);
+
     // Sign and submit transaction with safe error handling
     let response;
     try {
@@ -145,7 +179,6 @@ export async function purchaseCredits({
         throw new Error("Transaction submission failed - no hash returned");
       }
     } catch (error) {
-      // console.error("Transaction signing failed:", error);
       if (handleError) handleError(error);
       if (displayMessage) {
         if (error instanceof Error && error.message) {
@@ -169,7 +202,7 @@ export async function purchaseCredits({
     let confirmationSuccess = false;
     try {
       const txCheckPromise = fetch(
-        `https://fullnode.testnet.aptoslabs.com/v1/transactions/by_hash/${response.hash}`,
+        `https://fullnode.mainnet.aptoslabs.com/v1/transactions/by_hash/${response.hash}`,
         { method: "GET" }
       );
       
@@ -182,33 +215,26 @@ export async function purchaseCredits({
       
       if (!txResponse.ok) {
         const errorData = await txResponse.json().catch(() => ({}));
-        // console.error("Transaction confirmation failed:", txResponse.status, errorData);
         confirmationSuccess = false;
-        // console.log("Will proceed with credit purchase despite confirmation check failure");
       } else {
         // Check transaction success status
         const txData = await txResponse.json().catch(() => null);
         if (txData && txData.vm_status && txData.vm_status !== "Executed successfully") {
-          // console.error("Transaction executed with error:", txData.vm_status);
           confirmationSuccess = false;
-          // console.log("Will proceed with credit purchase despite VM status issue");
         } else {
           confirmationSuccess = true;
         }
       }
     } catch (error) {
-      // console.error("Transaction confirmation error:", error);
       confirmationSuccess = false;
     }
 
     // Always proceed with credit purchase if we have a transaction hash
-    // even if confirmation check failed
-    // console.log(`Proceeding with credit purchase. Confirmation success: ${confirmationSuccess}`);
-    
     if (displayMessage) {
+      const vaultInfo = VAULT_RECIPIENT_CONFIG[vaultId] ? ` to ${VAULT_RECIPIENT_CONFIG[vaultId].description}` : '';
       if (confirmationSuccess) {
         displayMessage(
-          `Thank you for your purchase! ${buyAmount} credit${buyAmount > 1 ? "s" : ""} added to your balance.`
+          `Thank you for your purchase! ${buyAmount} credit${buyAmount > 1 ? "s" : ""} added to your balance. .`
         );
       } else {
         displayMessage(
@@ -235,8 +261,6 @@ export async function purchaseCredits({
     // Handle errors
     if (handleError) {
       handleError(error);
-    } else {
-      // console.error("Transaction failed:", error);
     }
     
     // Display error message if message handler is provided
@@ -252,8 +276,22 @@ export async function purchaseCredits({
 }
 
 /**
+ * Get available vault information
+ */
+export function getAvailableVaults() {
+  return VAULT_RECIPIENT_CONFIG;
+}
+
+/**
+ * Validate if a vault ID exists
+ */
+export function isValidVaultId(vaultId) {
+  const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
+  return !isNaN(numericVaultId) && VAULT_RECIPIENT_CONFIG.hasOwnProperty(numericVaultId);
+}
+
+/**
  * Save credits to localStorage
- * @param credits Number of credits to save
  */
 export function saveCreditsToLocalStorage(credits: number): void {
   localStorage.setItem("credits", credits.toString());
@@ -261,42 +299,19 @@ export function saveCreditsToLocalStorage(credits: number): void {
 
 /**
  * Load credits from localStorage
- * @returns Current credit balance or 0 if not found
  */
 export function loadCreditsFromLocalStorage(): number {
   return parseInt(localStorage.getItem("credits") || "0");
 }
 
 /**
- * Example usage:
+ * Example usage - ALWAYS provide vaultId:
  * 
- * // Using with React state hooks
- * async function handleBuyCredits() {
- *   setIsBuying(true);
- *   
- *   try {
- *     const result = await purchaseCredits({
- *       buyAmount: 5,
- *       currentCredits: credits,
- *       signAndSubmitTransaction: yourWalletProvider.signAndSubmitTransaction,
- *       updateCredits: (newCredits) => {
- *         setCredits(newCredits);
- *         saveCreditsToLocalStorage(newCredits);
- *       },
- *       displayMessage: (message) => {
- *         // Add to UI or conversation
- *         addMessageToConversation({
- *           role: "assistant",
- *           content: message
- *         });
- *       }
- *     });
- *     
- *     if (result.success) {
- *       // console.log("Purchase successful, new balance:", result.newCredits);
- *     }
- *   } finally {
- *     setIsBuying(false);
- *   }
- * }
+ * const result = await purchaseCredits({
+ *   buyAmount: 5,
+ *   vaultId: 111, // ✅ REQUIRED!
+ *   currentCredits: credits,
+ *   signAndSubmitTransaction: yourWalletProvider.signAndSubmitTransaction,
+ *   displayMessage: (message) => console.log(message)
+ * });
  */

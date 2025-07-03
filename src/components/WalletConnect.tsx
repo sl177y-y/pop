@@ -4,6 +4,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { handleWalletConnection } from "@/lib/walletService";
+import { useWalletStore } from "@/store/wallet";
 import React from 'react';
 
 // API helpers
@@ -43,12 +44,14 @@ async function hasAptosCoinStore(walletAddress: string): Promise<boolean> {
 interface WalletConnectProps {
   children: React.ReactNode;
   onSuccess?: () => void;
+  onError?: () => void;
   redirectPath?: string;
   checkExistingUser?: boolean;
 }
 
-export function WalletConnect({ children, onSuccess, redirectPath, checkExistingUser }: WalletConnectProps) {
-  const { connect, account, connected, wallets } = useWallet();
+export function WalletConnect({ children, onSuccess, onError, redirectPath, checkExistingUser }: WalletConnectProps) {
+  const { connect, account, connected, wallets, disconnect } = useWallet();
+  const { setAptosWallet } = useWalletStore();
   const [isConnecting, setIsConnecting] = useState(false);
   const [initialCheckDone, setInitialCheckDone] = useState(false);
   const router = useRouter();
@@ -60,25 +63,25 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
   // Function to prefetch and cache user details
   const prefetchUserData = async (walletAddress: string) => {
     try {
-      // console.log('Prefetching user data for:', walletAddress);
+      // // console.log('Prefetching user data for:', walletAddress);
       
       // Get user from database and cache in localStorage
       const user = await fetchUserByWallet(walletAddress);
       if (user) {
-        // console.log('User data fetched:', user);
+        // // console.log('User data fetched:', user);
         localStorage.setItem('userData', JSON.stringify(user));
         
         // Also fetch and cache userId separately as it's often needed
         const userId = await fetchUserIdFromWallet(walletAddress);
         if (userId) {
           localStorage.setItem('cachedUserId', userId.toString());
-          // console.log('User ID cached:', userId);
+          // // console.log('User ID cached:', userId);
         }
         
         // Fetch and cache credit balance
         const credits = await fetchUserCredits(walletAddress);
         localStorage.setItem('cachedUserCredits', credits.toString());
-        // console.log('User credits cached:', credits);
+        // // console.log('User credits cached:', credits);
       }
       
       setUserDataPrefetched(true);
@@ -102,7 +105,7 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
                                  localStorage.getItem('aptosWalletAddress');
       
       if (storedWalletAddress) {
-        // console.log('Found wallet address in localStorage:', storedWalletAddress);
+        // // console.log('Found wallet address in localStorage:', storedWalletAddress);
         // Prefetch user data in the background
         await prefetchUserData(storedWalletAddress);
       }
@@ -124,17 +127,17 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ walletAddress: address })
           });
-          // console.log('Sent 1 Octa to user wallet:', address);
+          // // console.log('Sent 1 Octa to user wallet:', address);
         } catch (err) {
           // console.error('Failed to send 1 Octa to user wallet:', err);
         }
       } else {
-        // console.log('User already has APT CoinStore, not sending Octa:', address);
+        // // console.log('User already has APT CoinStore, not sending Octa:', address);
       }
     };
 
     // Check for wallet address in localStorage or from account
-    const walletAddress = account?.address ||
+    const walletAddress = (account && account.address) ? account.address :
       localStorage.getItem('userWalletAddress') ||
       localStorage.getItem('wallet_address') ||
       localStorage.getItem('walletAddress') ||
@@ -145,6 +148,23 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
     }
   }, [account?.address]);
 
+  // Track connection/disconnection state changes
+  useEffect(() => {
+    // console.log('🔄 WalletConnect: State change detected', { connected, address: account?.address });
+    if (connected && account?.address) {
+      // Update wallet store when connected
+      // console.log('✅ Setting Aptos wallet as connected:', account.address);
+      setAptosWallet(account.address, true);
+      localStorage.setItem('userWalletAddress', account.address);
+    } else if (!connected) {
+      // Clear wallet store when disconnected
+      // console.log('❌ Setting Aptos wallet as disconnected');
+      setAptosWallet(null, false);
+      // Also clear localStorage
+      localStorage.removeItem('userWalletAddress');
+    }
+  }, [connected, account?.address, setAptosWallet]);
+
   // Check for existing wallet connection on mount
   useEffect(() => {
     const checkExistingConnection = async () => {
@@ -152,18 +172,18 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
       if (!checkExistingUser || initialCheckDone) return;
       
       // If already connected and we have an account
-      if (connected && account) {
+      if (connected && account && account.address) {
         try {
           // Ensure wallet address is consistently stored
-          if (account.address) {
-            localStorage.setItem('userWalletAddress', account.address);
-          }
+          localStorage.setItem('userWalletAddress', account.address);
+          // Update wallet store
+          setAptosWallet(account.address, true);
           
           // Check if user exists in database and prefetch data
           const existingUser = await prefetchUserData(account.address);
           
           if (existingUser) {
-            // console.log('Existing user with connected wallet found');
+            // // console.log('Existing user with connected wallet found');
             setIsLoggedIn(true);
             return;
           } else {
@@ -194,13 +214,15 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
         try {
           // Save wallet address to localStorage with a consistent key
           if (account.address) {
-            // console.log('Saving wallet address to localStorage:', account.address);
+            // // console.log('Saving wallet address to localStorage:', account.address);
             localStorage.setItem('userWalletAddress', account.address);
+            // Update wallet store
+            setAptosWallet(account.address, true);
           }
           
           // Create/update user in database
           const user = await handleWalletConnection(account.address);
-          // console.log('User registered/updated in database');
+          // // console.log('User registered/updated in database');
           
           // Cache the user data
           localStorage.setItem('userData', JSON.stringify(user));
@@ -231,6 +253,7 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
           setConnectionError('Failed to register user. Please try again.');
           setIsConnecting(false);
           setIsProcessing(false);
+          if (onError) onError();
         }
       }
     };
@@ -243,19 +266,19 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
       setConnectionError(null);
       
       // If already connected, just perform the success actions without trying to connect again
-      if (connected && account) {
-        // console.log('Wallet already connected, proceeding with flow');
+      if (connected && account && account.address) {
+        // // console.log('Wallet already connected, proceeding with flow');
         
         setIsProcessing(true);
         
-        // Save wallet address to localStorage with a consistent key if needed
-        if (account.address) {
-          // console.log('Ensuring wallet address is saved to localStorage:', account.address);
-          localStorage.setItem('userWalletAddress', account.address);
-          
-          // Prefetch user data for smoother experience
-          await prefetchUserData(account.address);
-        }
+        // Save wallet address to localStorage with a consistent key
+        // // console.log('Ensuring wallet address is saved to localStorage:', account.address);
+        localStorage.setItem('userWalletAddress', account.address);
+        // Update wallet store
+        setAptosWallet(account.address, true);
+        
+        // Prefetch user data for smoother experience
+        await prefetchUserData(account.address);
         
         setIsLoggedIn(true);
 
@@ -314,6 +337,7 @@ export function WalletConnect({ children, onSuccess, redirectPath, checkExisting
       setIsConnecting(false);
       setIsProcessing(false);
       setConnectionError('Failed to connect wallet. Please try again or refresh the page.');
+      if (onError) onError();
     }
   }, [connect, wallets, connected, account, router, onSuccess, redirectPath, checkExistingUser]);
 

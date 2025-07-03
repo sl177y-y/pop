@@ -12,6 +12,14 @@ import { useRouter } from "next/navigation";
 import { useMobileDetect } from '@/lib/mobileDetectStore';
 import { convertAndFormatAptToUsd } from '@/lib/priceUtils';
 import { getVerificationStatus } from '@/lib/indexedDBUtils';
+import { useWalletStore as useEVMWalletStore } from '@/store/wallet';
+
+// TypeScript declarations for MetaMask
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 
 // API helpers
 async function fetchUserIdFromWallet(walletAddress: string): Promise<number | null> {
@@ -19,6 +27,36 @@ async function fetchUserIdFromWallet(walletAddress: string): Promise<number | nu
   if (!res.ok) return null;
   const user = await res.json();
   return user?.id ?? null;
+}
+
+async function createUserIfNotExists(walletAddress: string): Promise<number | null> {
+  try {
+    // First check if user exists
+    let userId = await fetchUserIdFromWallet(walletAddress);
+    if (userId) return userId;
+    
+    // Create user if they don't exist
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        wallet_address: walletAddress,
+        credits: 0 // Start with 0 credits
+      })
+    });
+    
+    if (!res.ok) {
+      console.error('Failed to create user:', res.status, res.statusText);
+      return null;
+    }
+    
+    const newUser = await res.json();
+    // // console.log('Created new user for EVM wallet:', walletAddress, 'User ID:', newUser.id);
+    return newUser.id ?? null;
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return null;
+  }
 }
 
 async function fetchVaultById(vaultId: number) {
@@ -85,6 +123,7 @@ export default function Chat() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userWalletAddressForChat, setUserWalletAddressForChat] = useState<string | null>(null);
   const [debugError, setDebugError] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
   // Get the wallet for purchasing credits
@@ -92,6 +131,29 @@ export default function Chat() {
 
   // Inside the Chat component function, add these lines near the top with other state variables
   const { isMobile } = useMobileDetect();
+  
+  // Helper to get static node amounts for each vault
+  const getStaticNodeAmount = () => {
+    switch (vaultId) {
+      case '113': return 500;
+      case '114': return 942;
+      default: return 0;
+    }
+  };
+
+  // Helper to get dynamic total prize (base prize + static nodes)
+  const getDynamicTotalPrize = () => {
+    if (loading) return 0;
+    const basePrize = parseInt(convertAndFormatAptToUsd(vaultData?.total_prize || 0).replace(/,/g, ''));
+    const nodeAmount = getStaticNodeAmount();
+    return basePrize + nodeAmount;
+  };
+
+  // Helper to get formatted dynamic total prize
+  const getFormattedDynamicTotalPrize = () => {
+    if (loading) return "$0";
+    return `$${getDynamicTotalPrize().toLocaleString()}`;
+  };
   
   // Helper function to determine which mascot image to use based on vault ID
   const getMascotImage = () => {
@@ -121,11 +183,11 @@ export default function Chat() {
   // Validate access to the chat page
   useEffect(() => {
     const validateAccess = async () => {
-      console.log("Initiating chat page access validation...");
+      // console.log("Initiating chat page access validation...");
       try {
         // Check if a vault ID is in localStorage
         const selectedVaultId = localStorage.getItem('selectedVaultId');
-        console.log("1. Checking for selectedVaultId:", selectedVaultId);
+        // console.log("1. Checking for selectedVaultId:", selectedVaultId);
         
         if (!selectedVaultId) {
           console.error('No vault selected - redirecting to vault selection page');
@@ -137,14 +199,34 @@ export default function Chat() {
           }, 2000);
           return;
         }
-        console.log("   selectedVaultId check PASSED.");
+        // console.log("   selectedVaultId check PASSED.");
         
-        // Get wallet address
-        const walletAddress = localStorage.getItem('userWalletAddress') || 
+        // Get wallet address based on vault blockchain type  
+        let walletAddress = null;
+        
+        // Fetch vault data to determine blockchain type
+        if (selectedVaultId && isValidNumber(selectedVaultId)) {
+          const vault = await fetchVaultById(parseInt(selectedVaultId));
+          if (vault?.blockchain === 'ethereum') {
+            // For Ethereum vaults, get EVM wallet address from the store
+            const { evmWalletAddress } = useEVMWalletStore.getState();
+            walletAddress = evmWalletAddress;
+          } else {
+            // For Aptos vaults, get from localStorage
+            walletAddress = localStorage.getItem('userWalletAddress') || 
                              localStorage.getItem('wallet_address') || 
                              localStorage.getItem('walletAddress') || 
                              localStorage.getItem('aptosWalletAddress');
-        console.log("2. Checking for walletAddress:", walletAddress);
+          }
+        } else {
+          // Fallback to Aptos if vault type unknown
+          walletAddress = localStorage.getItem('userWalletAddress') || 
+                         localStorage.getItem('wallet_address') || 
+                         localStorage.getItem('walletAddress') || 
+                         localStorage.getItem('aptosWalletAddress');
+        }
+        
+        // console.log("2. Checking for walletAddress:", walletAddress);
         
         if (!walletAddress) {
           console.error('No wallet address found - redirecting to verify page');
@@ -155,15 +237,32 @@ export default function Chat() {
           }, 2000);
           return;
         }
-        console.log("   walletAddress check PASSED.");
+        // console.log("   walletAddress check PASSED.");
         
-        // Get user ID from wallet address
-        console.log("3. Fetching userId for walletAddress:", walletAddress);
-        const userId = await fetchUserIdFromWallet(walletAddress);
-        console.log("   Fetched userId:", userId);
+        // Get user ID from wallet address - FIXED: Handle EVM user creation during validation
+        // console.log("3. Fetching userId for walletAddress:", walletAddress);
+        let userId = null;
+        
+        // Check vault type to determine user creation strategy
+        if (selectedVaultId && isValidNumber(selectedVaultId)) {
+          const vault = await fetchVaultById(parseInt(selectedVaultId));
+          if (vault?.blockchain === 'ethereum') {
+            // For EVM wallets, create user if they don't exist during validation
+            userId = await createUserIfNotExists(walletAddress);
+            // console.log("   EVM user created/found with userId:", userId);
+          } else {
+            // For Aptos wallets, just fetch (they should exist from verification)
+            userId = await fetchUserIdFromWallet(walletAddress);
+            // console.log("   Aptos user fetched with userId:", userId);
+          }
+        } else {
+          // Fallback to Aptos behavior if vault type unknown
+          userId = await fetchUserIdFromWallet(walletAddress);
+          // console.log("   Fallback user fetched with userId:", userId);
+        }
         
         if (!userId) {
-          console.error('No user ID found - redirecting to verify page');
+          console.error('No user ID found or could not create user - redirecting to verify page');
           setRouteValidationError('User not found. Please complete verification first');
           
           setTimeout(() => {
@@ -171,12 +270,12 @@ export default function Chat() {
           }, 2000);
           return;
         }
-        console.log("   userId check PASSED.");
+        // console.log("   userId check PASSED.");
         
         // Check if user has completed verification for this vault using IndexedDB
-        console.log("4. Checking verification status in IndexedDB for vaultId:", selectedVaultId);
+        // console.log("4. Checking verification status in IndexedDB for vaultId:", selectedVaultId);
         const verificationStatus = await getVerificationStatus(selectedVaultId);
-        console.log("   IndexedDB verificationStatus result:", verificationStatus);
+        // console.log("   IndexedDB verificationStatus result:", verificationStatus);
         
         if (!verificationStatus || !verificationStatus.allStepsVerified) {
           console.error('Verification not complete in IndexedDB for this vault - redirecting to verify page');
@@ -187,10 +286,10 @@ export default function Chat() {
           }, 2000);
           return;
         }
-        console.log("   IndexedDB verification check (allStepsVerified) PASSED.");
+        // console.log("   IndexedDB verification check (allStepsVerified) PASSED.");
         
         // If all checks pass, allow access to chat
-        console.log('All access checks PASSED. Access to chat validated.');
+        // console.log('All access checks PASSED. Access to chat validated.');
         
       } catch (error) {
         console.error('Error during chat access validation:', error);
@@ -205,173 +304,75 @@ export default function Chat() {
     validateAccess();
   }, [router]);
 
-  // Log session initialization - only proceed if validation was successful
+  // SINGLE, RELIABLE EFFECT for initialization and polling
   useEffect(() => {
-    // Skip initialization if there's a validation error
+    // Stop if there's a validation error
     if (routeValidationError) return;
-    
-    const initializeChat = async () => {
+
+    const initializeAndPoll = async () => {
+      // 1. Initial Data Load
       try {
-        // Get vault ID from localStorage
         const selectedVaultId = localStorage.getItem('selectedVaultId');
-        // console.log('Retrieved selectedVaultId from localStorage:', selectedVaultId);
-        
         if (selectedVaultId) {
           setVaultId(selectedVaultId);
-          
-          // Fetch vault data
           if (isValidNumber(selectedVaultId)) {
             const vault = await fetchVaultById(parseInt(selectedVaultId));
-            if (vault) {
-              // console.log('Retrieved vault data:', vault);
-              setVaultData(vault);
+            if (vault) setVaultData(vault);
+
+            // Determine wallet address based on vault type
+            let walletAddress = null;
+            if (vault.blockchain === 'ethereum') {
+              const { evmWalletAddress } = useEVMWalletStore.getState();
+              walletAddress = evmWalletAddress;
             } else {
-              // console.warn('No vault data found for ID:', selectedVaultId);
+              walletAddress = localStorage.getItem('userWalletAddress') || localStorage.getItem('wallet_address');
             }
-          } else {
-            // console.warn('Invalid vault ID format:', selectedVaultId);
-          }
-        } else {
-          // console.warn('No vault ID found in localStorage');
-        }
-        
-        // Check multiple possible localStorage keys for wallet address
-        let walletAddress = localStorage.getItem('userWalletAddress');
-        
-        // Fallback to other possible keys
-        if (!walletAddress) {
-          walletAddress = localStorage.getItem('wallet_address') || 
-                          localStorage.getItem('walletAddress') || 
-                          localStorage.getItem('aptosWalletAddress');
-          // console.log('Retrieved wallet address from alternative keys:', walletAddress);
-        } else {
-          // console.log('Retrieved wallet address from userWalletAddress:', walletAddress);
-          // Ensure this value is also accessible later when chatting
-          localStorage.setItem('wallet_address', walletAddress);
-        }
-        
-        if (walletAddress) {
-          // Set wallet address for chat API
-          setUserWalletAddressForChat(walletAddress);
-          
-          try {
-            if (isValidString(walletAddress)) {
-              // TypeScript needs this extra check to narrow the type
-              if (walletAddress !== null) {
-                // First try to get userId from localStorage cache
-                let dbUserId: string | number | null = localStorage.getItem('cachedUserId');
-                
-                // If not in cache, fetch from database
-                if (!dbUserId) {
-                  dbUserId = await fetchUserIdFromWallet(walletAddress.trim());
-                  // console.log('User ID from wallet address (DB):', dbUserId);
-                } else {
-                  // console.log('User ID from cache:', dbUserId);
-                }
-                
-                if (dbUserId) {
-                  setUserId(dbUserId.toString());
-                  
-                  // Try to get user credits from localStorage cache first
-                  const cachedCredits = localStorage.getItem('cachedUserCredits');
-                  if (cachedCredits && !isNaN(Number(cachedCredits))) {
-                    // console.log('User credits from cache:', cachedCredits);
-                    setUserCredits(Number(cachedCredits));
-                  } else {
-                    // Fetch user credits from database as fallback
-                    const credits = await fetchUserCredits(walletAddress);
-                    // console.log('User credits from DB:', credits);
-                    setUserCredits(credits);
-                    // Update cache
-                    localStorage.setItem('cachedUserCredits', credits.toString());
-                  }
-                } else {
-                  // console.warn('User ID not found for wallet address:', walletAddress);
-                  // Generate a random user ID if not found in the database
-                  const randomId = `user-${Math.random().toString(36).substring(2, 10)}`;
-                  setUserId(randomId);
-                  // console.log('Generated random user ID:', randomId);
-                }
+            
+            if (walletAddress) {
+              setUserWalletAddressForChat(walletAddress);
+              const credits = await fetchUserCredits(walletAddress);
+              setUserCredits(credits);
+              localStorage.setItem('cachedUserCredits', credits.toString());
+
+              const dbUserId = await fetchUserIdFromWallet(walletAddress.trim());
+              if (dbUserId) {
+                setUserId(dbUserId.toString());
               }
-            } else {
-              // console.warn('Invalid wallet address format:', walletAddress);
-              const randomId = `user-${Math.random().toString(36).substring(2, 10)}`;
-              setUserId(randomId);
-              if (account?.address) setUserWalletAddressForChat(account.address);
             }
-          } catch (err) {
-            // console.error('Error getting user ID from wallet:', err);
-            const randomId = `user-${Math.random().toString(36).substring(2, 10)}`;
-            setUserId(randomId);
-            // console.log('Generated random user ID after error:', randomId);
-            if (account?.address) setUserWalletAddressForChat(account.address);
-          }
-        } else {
-          // console.warn('No wallet address found in localStorage');
-          // Generate a random user ID if no wallet address is found
-          const randomId = `user-${Math.random().toString(36).substring(2, 10)}`;
-          setUserId(randomId);
-          // console.log('Generated random user ID (no wallet):', randomId);
-          // If we have account from wallet, use that address
-          if (account?.address) {
-            // console.log('Using wallet account address:', account.address);
-            setUserWalletAddressForChat(account.address);
           }
         }
       } catch (error) {
-        // console.error('Error initializing chat:', error);
-        // Fallback to random ID
-        const randomId = `user-${Math.random().toString(36).substring(2, 10)}`;
-        setUserId(randomId);
-        // console.log('Generated random user ID after exception:', randomId);
+        console.error("Error during initial data load:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    initializeChat();
-    return () => {
-      // console.log(`[ChatUI] Session ended for ID: ${userId}`);
-    };
-  }, [routeValidationError, account?.address]);
+    initializeAndPoll();
 
-  // Effect for polling vault and user data every 1 second
-  useEffect(() => {
-    if (routeValidationError) return; // Don't poll if there is a validation error
-
+    // 2. Setup Polling Interval
     const intervalId = setInterval(async () => {
-      // console.log("Polling for data updates...");
       try {
-        // Refresh vault data
         const selectedVaultId = localStorage.getItem('selectedVaultId');
         if (selectedVaultId && isValidNumber(selectedVaultId)) {
           const vault = await fetchVaultById(parseInt(selectedVaultId));
-          if (vault) {
-            setVaultData(vault);
-            // console.log("Refreshed vault data:", vault);
-          }
+          if (vault) setVaultData(vault);
         }
 
-        // Refresh user credits
-        const walletAddress = localStorage.getItem('userWalletAddress') || localStorage.getItem('wallet_address');
-        if (walletAddress && isValidString(walletAddress)) {
-           // TypeScript needs this extra check to narrow the type
-          if (walletAddress !== null) { 
-            const credits = await fetchUserCredits(walletAddress.trim());
-            setUserCredits(credits);
-            // Update cache
-            localStorage.setItem('cachedUserCredits', credits.toString());
-            // console.log("Refreshed user credits:", credits);
-          }
+        if (userWalletAddressForChat && isValidString(userWalletAddressForChat)) {
+          const credits = await fetchUserCredits(userWalletAddressForChat.trim());
+          setUserCredits(credits);
+          localStorage.setItem('cachedUserCredits', credits.toString());
         }
       } catch (error) {
-        // console.error("Error during polling:", error);
+        console.error("Error during polling:", error);
       }
-    }, 1000); // Poll every 1 second
+    }, 5000); // Poll every 5 seconds
 
-    // Clear interval on component unmount
+    // Cleanup: clear interval when component unmounts or dependencies change
     return () => clearInterval(intervalId);
-  }, [routeValidationError]); // Re-run effect if routeValidationError changes
+
+  }, [routeValidationError, vaultId, userWalletAddressForChat]); // CORRECT DEPENDENCIES
 
   const {
     messages,
@@ -392,25 +393,29 @@ export default function Chat() {
     initialMessages: [],
     streamMode: "text",
     onResponse: (response) => {
-      console.log("[ChatUI useChat] onResponse: Received response object:", response);
-      console.log("[ChatUI useChat] Response status:", response.status);
-      console.log("[ChatUI useChat] Response OK:", response.ok);
+      // console.log("[ChatUI useChat] onResponse: Received response object:", response);
+      // console.log("[ChatUI useChat] Response status:", response.status);
+      // console.log("[ChatUI useChat] Response OK:", response.ok);
+      // console.log("🔍 DEBUG: API request body - userId:", userId, "vaultId:", vaultId, "userWalletAddress:", userWalletAddressForChat);
       if (!response.ok) {
         console.error("[ChatUI useChat] onResponse: Response not OK", response.status, response.statusText);
       }
     },
     onFinish: async (message) => {
-      // console.log("[ChatUI useChat] onFinish: Stream finished. Last AI message:", message);
+      // // console.log("[ChatUI useChat] onFinish: Stream finished. Last AI message:", message);
+      
+      // Reset submitting state when response is complete
+      setIsSubmitting(false);
       
       // Check if the message contains a transaction hash
       if (message.content && checkForTransactionHash(message.content.toString())) {
-        // console.log("Transaction detected in AI message, refreshing vault data");
+        // // console.log("Transaction detected in AI message, refreshing vault data");
         refreshVaultData();
       }
 
       // Check for VAULT_UNLOCKED message from AI
       if (message.content && message.content.includes("VAULT_UNLOCKED")) {
-        console.log("[ChatUI] VAULT_UNLOCKED detected!");
+        // console.log("[ChatUI] VAULT_UNLOCKED detected!");
         if (vaultData && vaultData.name) {
           localStorage.setItem('lastWonVaultName', vaultData.name);
         }
@@ -435,7 +440,7 @@ export default function Chat() {
         try {
           // Subtract 1 credit from user's account
           const newCredits = await updateUserCreditsAPI(walletAddress as string, 1, 'subtract');
-          // console.log('Reduced user credits by 1. New balance:', newCredits);
+          // // console.log('Reduced user credits by 1. New balance:', newCredits);
           
           // Update the local state
           if (newCredits !== null) {
@@ -470,7 +475,7 @@ export default function Chat() {
   const refreshVaultData = async () => {
     if (vaultId && isValidNumber(vaultId)) {
       try {
-        // console.log("Refreshing vault data for ID:", vaultId);
+        // // console.log("Refreshing vault data for ID:", vaultId);
         const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
         // Ensure numericVaultId is a valid number before passing to the function
         if (!isNaN(numericVaultId)) {
@@ -478,7 +483,7 @@ export default function Chat() {
           const updatedVault = await fetchVaultById(numericVaultId as number);
           
           if (updatedVault) {
-            // console.log("Updated vault data:", updatedVault);
+            // // console.log("Updated vault data:", updatedVault);
             setVaultData(updatedVault);
           } else {
             // console.warn("Failed to refresh vault data");
@@ -502,7 +507,7 @@ export default function Chat() {
       if (lastMessage.role === 'assistant' && 
           lastMessage.content && 
           checkForTransactionHash(lastMessage.content.toString())) {
-        // console.log("Transaction detected in latest message, refreshing vault data");
+        // // console.log("Transaction detected in latest message, refreshing vault data");
         refreshVaultData();
       }
     }
@@ -512,15 +517,15 @@ export default function Chat() {
   const loadPreviousMessages = async (retryCount = 0) => {
     // Skip if either value is missing
     if (!userId || !vaultId) {
-      // console.log('Missing userId or vaultId, skipping chat history load');
+      // // console.log('Missing userId or vaultId, skipping chat history load');
       
       // If we've tried less than 3 times and we're not loading, retry
       if (retryCount < 3 && !loading) {
-        // console.log(`Will retry loading messages in 1 second (attempt ${retryCount + 1} of 3)`);
+        // // console.log(`Will retry loading messages in 1 second (attempt ${retryCount + 1} of 3)`);
         setTimeout(() => loadPreviousMessages(retryCount + 1), 1000);
       } else if (retryCount >= 3) {
         // After 3 attempts, show default greeting
-        // console.log('Max retries reached, using default greeting');
+        // // console.log('Max retries reached, using default greeting');
         setShouldSetInitialGreeting(true);
       }
       return;
@@ -549,17 +554,17 @@ export default function Chat() {
         
         // If we've tried less than 3 times, retry
         if (retryCount < 3) {
-          // console.log(`Will retry with better IDs in 1 second (attempt ${retryCount + 1} of 3)`);
+          // // console.log(`Will retry with better IDs in 1 second (attempt ${retryCount + 1} of 3)`);
           setTimeout(() => loadPreviousMessages(retryCount + 1), 1000);
         } else {
           // After 3 attempts, show default greeting
-          // console.log('Max retries reached, using default greeting');
+          // // console.log('Max retries reached, using default greeting');
           setShouldSetInitialGreeting(true);
         }
         return;
       }
       
-      // console.log(`Fetching conversations for user ${numericUserId} and vault ${numericVaultId}`);
+      // // console.log(`Fetching conversations for user ${numericUserId} and vault ${numericVaultId}`);
       
       // Get conversations for this user and vault
       const conversations = await fetchConversations(numericUserId as number, numericVaultId as number);
@@ -571,13 +576,13 @@ export default function Chat() {
         return;
       }
       
-      // console.log(`Found ${conversations.length} conversations`);
+      // // console.log(`Found ${conversations.length} conversations`);
       
       // Get the most recent conversation
       const conversationId = conversations[0].id;
       
       if (isValidNumber(conversationId)) {
-        // console.log(`Loading messages for conversation ID ${conversationId}`);
+        // // console.log(`Loading messages for conversation ID ${conversationId}`);
         
         // Get messages for this conversation
         const previousMessages = await fetchMessages(Number(conversationId));
@@ -589,7 +594,7 @@ export default function Chat() {
           return;
         }
         
-        // console.log(`Found ${previousMessages.length} messages`);
+        // // console.log(`Found ${previousMessages.length} messages`);
         
         // Format messages for the chat component
         const formattedMessages = previousMessages.map(msg => ({
@@ -598,12 +603,12 @@ export default function Chat() {
           content: msg.content
         }));
         
-        // console.log('Setting formatted messages:', formattedMessages.length);
+        // // console.log('Setting formatted messages:', formattedMessages.length);
         
         // Set the messages in the chat
         setMessages(formattedMessages);
         setLoadedPreviousMessages(true);
-        // console.log(`[ChatUI] Loaded ${formattedMessages.length} previous messages`);
+        // // console.log(`[ChatUI] Loaded ${formattedMessages.length} previous messages`);
       } else {
         // console.warn('Retrieved conversation has invalid ID:', conversationId);
         setShouldSetInitialGreeting(true);
@@ -613,11 +618,11 @@ export default function Chat() {
       
       // If we've tried less than 3 times, retry
       if (retryCount < 3) {
-        // console.log(`Will retry loading messages in 1 second (attempt ${retryCount + 1} of 3)`);
+        // // console.log(`Will retry loading messages in 1 second (attempt ${retryCount + 1} of 3)`);
         setTimeout(() => loadPreviousMessages(retryCount + 1), 1000);
       } else {
         // After 3 attempts, show default greeting
-        // console.log('Max retries reached, using default greeting');
+        // // console.log('Max retries reached, using default greeting');
         setShouldSetInitialGreeting(true);
       }
     }
@@ -626,7 +631,7 @@ export default function Chat() {
   // Fetch previous conversation messages when userId and vaultId are available
   useEffect(() => {
     if (userId && vaultId && !loadedPreviousMessages) {
-      // console.log(`Attempting to load previous messages (userId: ${userId}, vaultId: ${vaultId})`);
+      // // console.log(`Attempting to load previous messages (userId: ${userId}, vaultId: ${vaultId})`);
       loadPreviousMessages();
     }
   }, [userId, vaultId, loadedPreviousMessages, setMessages]);
@@ -638,7 +643,7 @@ export default function Chat() {
     
     if (!loading && messages.length === 0 && !shouldSetInitialGreeting && !loadedPreviousMessages) {
       checkTimeout = setTimeout(() => {
-        // console.log('No messages after timeout - attempting to reload messages');
+        // // console.log('No messages after timeout - attempting to reload messages');
         loadPreviousMessages();
       }, 3000);
     }
@@ -652,7 +657,7 @@ export default function Chat() {
   useEffect(() => {
     // If not loading and no previous messages were loaded and chat is empty
     if (!loading && !loadedPreviousMessages && messages.length === 0) {
-      // console.log('Setting initial greeting flag');
+      // // console.log('Setting initial greeting flag');
       setShouldSetInitialGreeting(true);
     }
   }, [loading, loadedPreviousMessages, messages.length]);
@@ -660,7 +665,7 @@ export default function Chat() {
   // Apply the initial greeting when needed
   useEffect(() => {
     if (shouldSetInitialGreeting && setMessages) {
-      // console.log('Adding initial greeting message');
+      // // console.log('Adding initial greeting message');
       setMessages([
         {
           id: 'initial-zora-message',
@@ -682,38 +687,47 @@ Good luck!`,
   // Count user attempts based on the messages from useChat
   const userAttempts = messages.filter(m => m.role === 'user').length;
 
-  // Create a function to handle form submission with proper React state handling
+  // Create a function to handle form submission with proper React state handling and debouncing
   const handleSubmit = (e: React.FormEvent) => {
     // Prevent form submission default behavior
     e.preventDefault();
     
-    console.log('🚀 Form submit attempted');
-    console.log('📝 Input value:', input);
-    console.log('💰 User credits:', userCredits);
-    console.log('⏳ AI loading:', aiLoading);
+    // console.log('🚀 Form submit attempted');
+    // console.log('📝 Input value:', input);
+    // console.log('💰 User credits:', userCredits);
+    // console.log('⏳ AI loading:', aiLoading);
+    // console.log('🔒 Is submitting:', isSubmitting);
     
     // Trim the message and check if it's empty
     const trimmedMessage = input.trim();
     if (!trimmedMessage) {
-      console.log('❌ Message is empty, not submitting');
+      // console.log('❌ Message is empty, not submitting');
       return;
     }
     
     if (userCredits <= 0) {
-      console.log('❌ No credits available, not submitting');
+      // console.log('❌ No credits available, not submitting');
       return;
     }
     
-    if (aiLoading) {
-      console.log('❌ AI is loading, not submitting');
+    if (aiLoading || isSubmitting) {
+      // console.log('❌ AI is loading or already submitting, not submitting');
       return;
     }
     
-    console.log('✅ All checks passed, submitting message');
+    // console.log('✅ All checks passed, submitting message');
+    
+    // Set submitting state to prevent multiple submissions
+    setIsSubmitting(true);
     
     // Call the handleSubmit from useChat.
     // This will automatically append the user message and then handle the API call.
     handleChatSubmit(e);
+    
+    // Reset submitting state after a short delay (the AI response will handle the full flow)
+    setTimeout(() => {
+      setIsSubmitting(false);
+    }, 2000); // 2 second cooldown
   };
 
   // Toggle sidebar visibility for mobile view
@@ -766,7 +780,7 @@ Good luck!`,
     setDebugError(null); // Reset debug error on new attempt
     
     try {
-      // console.log('[CREDIT PURCHASE] Starting purchase process for', amount, 'credits');
+      // // console.log('[CREDIT PURCHASE] Starting purchase process for', amount, 'credits');
       
       // Ensure we have the latest wallet address updated
       if (account.address) {
@@ -777,6 +791,7 @@ Good luck!`,
       
       const result = await purchaseCredits({
         buyAmount: amount,
+        vaultId: vaultId,
         currentCredits: userCredits,
         signAndSubmitTransaction,
         updateCredits: (newCredits) => {
@@ -809,23 +824,23 @@ Good luck!`,
       });
       
       if (result.success) {
-        // console.log("[CREDIT PURCHASE] Purchase successful, new balance:", result.newCredits);
+        // // console.log("[CREDIT PURCHASE] Purchase successful, new balance:", result.newCredits);
         
         // Update the database with the new credit balance
         const walletAddress = userWalletAddressForChat || localStorage.getItem('userWalletAddress') || account.address;
         if (isValidString(walletAddress)) {
           try {
-            // console.log("[CREDIT PURCHASE] Updating user credits in database");
+            // // console.log("[CREDIT PURCHASE] Updating user credits in database");
             const newDbCredits = await updateUserCreditsAPI(walletAddress, amount, 'add');
             if (newDbCredits !== null) {
               setUserCredits(newDbCredits); // Update with value from database
-              // console.log("[CREDIT PURCHASE] Database credits updated to:", newDbCredits);
+              // // console.log("[CREDIT PURCHASE] Database credits updated to:", newDbCredits);
             }
             
             // Update vault balance - add 2 APT to the vault
             if (vaultId && isValidNumber(vaultId)) {
               try {
-                // console.log("[CREDIT PURCHASE] Updating vault balance, adding 2 APT to vault:", vaultId);
+                // // console.log("[CREDIT PURCHASE] Updating vault balance, adding 2 APT to vault:", vaultId);
                 const currentVault = await fetchVaultById(Number(vaultId));
                 
                 if (currentVault) {
@@ -841,7 +856,7 @@ Good luck!`,
                   });
                   
                   if (updatedVault) {
-                    // console.log("[CREDIT PURCHASE] Vault updated successfully, new total prize:", updatedVault.total_prize);
+                    // // console.log("[CREDIT PURCHASE] Vault updated successfully, new total prize:", updatedVault.total_prize);
                     // Update the local vault data
                     setVaultData(updatedVault);
                   } else {
@@ -951,8 +966,18 @@ Good luck!`,
     };
   }, []);
 
-  // Map the Vercel AI messages to the expected chat history format
-  const chatHistory = messages.map((msg, index) => {
+  // Filter out nudging messages before mapping
+  const filteredMessages = messages.filter(msg => {
+    if (msg.role !== 'assistant') return true;
+    const content = msg.content?.toString() || '';
+    // Remove nudging messages about Sepolia faucet
+    return !content.includes('sepolia-faucet.com') && 
+           !content.includes('Out of credits?') && 
+           !content.includes('Get free Sepolia ETH');
+  });
+
+  // Map the filtered messages to the expected chat history format
+  const chatHistory = filteredMessages.map((msg, index) => {
     let rejected = false;
     let accepted = false;
 
@@ -976,7 +1001,7 @@ Good luck!`,
   // Update chat configuration when account changes
   useEffect(() => {
     if (account?.address) {
-      // console.log("Account address updated:", account.address);
+      // // console.log("Account address updated:", account.address);
       setUserWalletAddressForChat(account.address);
     }
   }, [account]);
@@ -987,6 +1012,133 @@ Good luck!`,
       document.body.style.overflow = 'auto';
     };
   }, []);
+
+  // Handle Buy Credits with Sepolia ETH for EVM vaults - Using Vault-Specific Treasury
+  const handleBuyCreditsEVM = async (amount = 5) => {
+    // Get EVM wallet state without subscribing to changes
+    const { evmWalletAddress, evmConnected } = useEVMWalletStore.getState();
+    
+    if (!evmWalletAddress || !evmConnected) {
+      setPurchaseStatus("Ethereum wallet not connected. Please connect MetaMask first.");
+      return;
+    }
+
+    if (!isValidNumber(amount) || amount <= 0) {
+      setPurchaseStatus("Invalid credit amount");
+      return;
+    }
+
+    if (!vaultId) {
+      setPurchaseStatus("Vault ID not found. Please refresh the page.");
+      return;
+    }
+
+    setIsBuying(true);
+    setPurchaseStatus("Initializing EVM credit purchase...");
+    setShowFaucetLink(false);
+    setDebugError(null);
+    
+    // console.log(`[UI] Initiating EVM purchase for vaultId: ${vaultId} (type: ${typeof vaultId})`);
+
+    try {
+      // Import the new EVM credit purchase function
+      const { purchaseEVMCredits } = await import('@/lib/evmbuycredit');
+      
+      setPurchaseStatus("Processing payment with vault-specific treasury...");
+      
+      // Use the new sophisticated EVM credit purchase system
+      const result = await purchaseEVMCredits({
+        buyAmount: amount,
+        vaultId: vaultId,
+        currentCredits: userCredits || 0,
+        updateCredits: (newCredits) => {
+          setUserCredits(newCredits);
+          localStorage.setItem('cachedUserCredits', newCredits.toString());
+        },
+        displayMessage: setPurchaseStatus,
+        handleError: (error) => {
+          console.error("[EVM CREDIT PURCHASE] Error:", error);
+          setDebugError(error.toString());
+        }
+      });
+      
+      if (result.success) {
+        // Update the database with the transaction
+        if (result.transactionHash) {
+          try {
+      const response = await fetch('/api/transactions/evm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: result.actualSenderAddress || evmWalletAddress,
+                amount: (amount * 0.0002).toString(), // 0.0002 ETH per credit
+          vaultId: Number(vaultId),
+                tokenType: 'native',
+                transactionHash: result.transactionHash,
+                verified: true
+        })
+      });
+
+            const apiResult = await response.json();
+      
+            if (apiResult.success) {
+              // console.log(`✅ Database updated with EVM transaction: ${result.transactionHash}`);
+              // Update UI with the correct credits from database
+              if (apiResult.newTotalCredits !== undefined) {
+                setUserCredits(apiResult.newTotalCredits);
+                localStorage.setItem('cachedUserCredits', apiResult.newTotalCredits.toString());
+                // console.log(`💰 Credits updated to: ${apiResult.newTotalCredits}`);
+              }
+            } else {
+              console.warn(`⚠️ Database update failed, but credits were awarded: ${apiResult.error}`);
+            }
+          } catch (dbError) {
+            console.warn("⚠️ Database update failed, but credits were awarded:", dbError);
+            // Force refresh credits from polling to ensure UI is up to date
+            const walletAddressForPolling = result.actualSenderAddress || evmWalletAddress;
+            if (walletAddressForPolling) {
+              try {
+                const currentCredits = await fetchUserCredits(walletAddressForPolling);
+                setUserCredits(currentCredits);
+                localStorage.setItem('cachedUserCredits', currentCredits.toString());
+                // console.log(`💰 Fallback credits refresh: ${currentCredits}`);
+              } catch (fallbackError) {
+                console.error("Failed to refresh credits:", fallbackError);
+              }
+            }
+        }
+        }
+        
+        // Success - credits already updated by purchaseEVMCredits
+        // console.log(`✅ EVM credit purchase completed: ${amount} credits for vault ${vaultId}`);
+        
+        // Clear status after 8 seconds
+        setTimeout(() => {
+          setPurchaseStatus(null);
+        }, 8000);
+      } else {
+        // purchaseEVMCredits handles error display through displayMessage
+          setShowFaucetLink(true);
+        }
+      
+    } catch (error) {
+      console.error("[EVM CREDIT PURCHASE] Critical Error:", error);
+      
+      // Fallback error handling
+      if (error.message?.includes('MetaMask')) {
+        setPurchaseStatus("MetaMask error: " + error.message);
+      } else if (error.message?.includes('vault')) {
+        setPurchaseStatus(`Vault configuration error: ${error.message}`);
+      } else {
+        setPurchaseStatus("EVM credit purchase failed: " + (error.message || "Unknown error"));
+      setShowFaucetLink(true);
+      }
+    } finally {
+      setIsBuying(false);
+    }
+  };
+
+
 
   if (routeValidationError) {
     return (
@@ -1101,22 +1253,15 @@ Good luck!`,
                   letterSpacing: "0.05em",
                 }}
               >
-                {vaultId === "113" 
-                  ? `$${500 + parseFloat(convertAndFormatAptToUsd(vaultData?.total_prize || 0))}`
-                  : vaultId === "114"
-                  ? `$${700 + parseFloat(convertAndFormatAptToUsd(vaultData?.total_prize || 0))}`
-                  : `$${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}`
-                }
+                {getFormattedDynamicTotalPrize()}
               </div>
               {/* Breakdown text */}
-              {vaultId === "113" && (
-                <div className="text-yellow-400 text-sm font-normal -mt-1 mb-1">
-                  {isMobile ? `( $500+$${convertAndFormatAptToUsd(vaultData?.total_prize || 0)})` : `(${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}+$500 nodes)`}
-                </div>
-              )}
-              {vaultId === "114" && (
-                <div className="text-yellow-400 text-sm font-normal -mt-1 mb-1" style={{ fontFamily: "'Fira Code', monospace" }}>
-                  {isMobile ? `( $700+$${convertAndFormatAptToUsd(vaultData?.total_prize || 0)})` : `(${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}+$700 nodes)`}
+              {getStaticNodeAmount() > 0 && (
+                <div className="text-yellow-400 text-sm font-normal -mt-1 mb-1" style={{ fontFamily: vaultId === "114" ? "'Fira Code', monospace" : undefined }}>
+                  {isMobile 
+                    ? `($${getStaticNodeAmount()}+$${convertAndFormatAptToUsd(vaultData?.total_prize || 0)})` 
+                    : `(${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}+$${getStaticNodeAmount()} nodes)`
+                  }
                 </div>
               )}
               <p className={`text-gray-400 ${vaultId === "113" ? 'text-[10px]' : 'text-xs md:text-base'}`} style={{ fontFamily: vaultId === "113" ? `'Clash Display', sans-serif` : undefined }}>
@@ -1147,17 +1292,23 @@ Good luck!`,
 
             {/* Buy Credits Button */}
             <div className={`${vaultId === "113" ? 'mt-1' : vaultId === "114" ? 'mt-1' : 'mt-3'} px-0.5 md:px-3`}>
-              <div className={`flex justify-between items-center ${vaultId === "113" ? 'mb-1' : vaultId === "114" ? 'mb-1' : 'mb-2'} border border-white/20 rounded-md bg-black bg-opacity-40 px-0.5 py-1 mx-2`}>
+              <div className={`flex justify-between items-center ${vaultId === "113" ? 'mb-1' : vaultId === "114" ? 'mb-1' : 'mb-2'} border border-white/20 rounded-md bg-black bg-opacity-40 px-0.5 py-1 mx-0`}>
                 <span className={`text-gray-400 ${vaultId === "113" ? 'text-[10px]' : vaultId === "114" ? 'text-[10px]' : 'text-xs'} uppercase tracking-widest`} style={{ fontFamily: vaultId === "113" ? `'Clash Display', sans-serif` : vaultId === "114" ? "'Fira Code', monospace" : undefined }}>
                   CREDIT PRICE
                 </span>
                 <span className={`text-white ${vaultId === "113" ? 'text-[10px]' : vaultId === "114" ? 'text-[10px]' : 'text-xs'} md:text-base`} style={{ fontFamily: vaultId === "113" ? `'Clash Display', sans-serif` : vaultId === "114" ? "'Fira Code', monospace" : undefined }}>
-                  0.1 APT per credit
+                  {vaultData?.blockchain === 'ethereum' ? '0.0002 SEP per credit' : '0.1 APT per credit'}
                 </span>
               </div>
 
               <button
-                onClick={() => handleBuyCredits(5)}
+                onClick={() => {
+                  if (vaultData?.blockchain === 'ethereum') {
+                    handleBuyCreditsEVM(5);
+                  } else {
+                    handleBuyCredits(5);
+                  }
+                }}
                 disabled={isBuying}
                 className={`${vaultId === "113" ? 'w-full' : vaultId === "114" ? 'w-full' : 'w-full'} ${vaultId === "113" ? 'h-auto' : vaultId === "114" ? 'h-auto' : 'h-10'} py-0 rounded relative overflow-hidden ${
                   isBuying ? "bg-gray-700" : ""
@@ -1227,7 +1378,7 @@ Good luck!`,
                           className={`tracking-wider text-[9px] absolute z-10 text-white font-bold text-center leading-tight`} // Adjusted for vault 113 mobile
                           style={{ fontFamily: vaultId === "113" ? `'Clash Display', monospace` : "vt323, monospace", textShadow: "0 1px 2px rgba(0, 0, 0, 0.6)" }}
                         >
-                          BUY 5 CREDITS<br />(0.5 APT)
+                          BUY 5 CREDITS<br />({vaultData?.blockchain === 'ethereum' ? '0.001 SEP' : '0.5 APT'})
                         </span>
                       </div>
                                           ) : vaultId === "114" ? (
@@ -1249,7 +1400,7 @@ Good luck!`,
                             className={`tracking-wider text-[9px] absolute z-10 text-black font-bold text-center leading-tight`} // Changed to black text for vault 114 mobile
                             style={{ fontFamily: "'Fira Code', monospace", textShadow: "0 1px 2px rgba(255, 255, 255, 0.3)" }}
                           >
-                            BUY 5 CREDITS<br />(0.5 APT)
+                            BUY 5 CREDITS<br />({vaultData?.blockchain === 'ethereum' ? '0.001 SEP' : '0.5 APT'})
                           </span>
                         </div>
                     ) : (
@@ -1258,7 +1409,7 @@ Good luck!`,
                           className="tracking-wider text-sm"
                           style={{ fontFamily: "vt323, monospace" }}
                         >
-                          BUY 5 CREDITS (0.5 APT)
+                          BUY 5 CREDITS ({vaultData?.blockchain === 'ethereum' ? '0.001 SEP' : '0.5 APT'})
                         </span>
                       </div>
                     )}
@@ -1360,22 +1511,12 @@ Good luck!`,
                       letterSpacing: "0.05em",
                     }}
                   >
-                    {vaultId === "113" 
-                      ? `$${500 + parseFloat(convertAndFormatAptToUsd(vaultData?.total_prize || 0))}`
-                      : vaultId === "114"
-                      ? `$${700 + parseFloat(convertAndFormatAptToUsd(vaultData?.total_prize || 0))}`
-                      : `$${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}`
-                    }
+                    {getFormattedDynamicTotalPrize()}
                   </div>
                   {/* Breakdown text */}
-                  {vaultId === "113" && (
-                    <div className="text-yellow-400 text-lg font-normal -mt-1 mb-2">
-                      (${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}+$500 nodes)
-                    </div>
-                  )}
-                  {vaultId === "114" && (
-                    <div className="text-yellow-400 text-lg font-normal -mt-1 mb-2" style={{ fontFamily: "'Fira Code', monospace" }}>
-                      (${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}+$700 nodes)
+                  {getStaticNodeAmount() > 0 && (
+                    <div className="text-yellow-400 text-lg font-normal -mt-1 mb-2" style={{ fontFamily: vaultId === "114" ? "'Fira Code', monospace" : undefined }}>
+                      (${convertAndFormatAptToUsd(vaultData?.total_prize || 0)}+${getStaticNodeAmount()} nodes)
                     </div>
                   )}
                   <p className="text-gray-400 text-sm md:text-base">
@@ -1411,12 +1552,18 @@ Good luck!`,
                       CREDIT PRICE
                     </span>
                     <span className={`text-white ${vaultId !== "113" && vaultId !== "114" ? 'text-sm' : 'text-sm'} md:text-base`} style={{ fontFamily: vaultId === "113" ? `'Clash Display', sans-serif` : vaultId === "114" ? "'Fira Code', monospace" : undefined }}>
-                      0.1 APT per credit
+                      {vaultData?.blockchain === 'ethereum' ? '0.0002 SEP per credit' : '0.1 APT per credit'}
                     </span>
                   </div>
 
                   <button
-                    onClick={() => handleBuyCredits(5)}
+                    onClick={() => {
+                      if (vaultData?.blockchain === 'ethereum') {
+                        handleBuyCreditsEVM(5);
+                      } else {
+                        handleBuyCredits(5);
+                      }
+                    }}
                     disabled={isBuying}
                     className={`w-full py-2 md:py-3 rounded relative overflow-hidden ${
                       isBuying ? "bg-gray-700" : ""
@@ -1486,7 +1633,7 @@ Good luck!`,
                               className={`tracking-wider text-xs md:text-base absolute z-10 text-white font-bold text-center leading-tight`} // Changed md:text-sm to md:text-base
                               style={{ fontFamily: vaultId === "113" ? `'Clash Display', monospace` : "vt323, monospace", textShadow: "0 1px 2px rgba(0, 0, 0, 0.6)" }}
                             >
-                              BUY 5 CREDITS<br />(0.5 APT)
+                              BUY 5 CREDITS<br />({vaultData?.blockchain === 'ethereum' ? '0.001 SEP' : '0.5 APT'})
                             </span>
                           </div>
                         ) : vaultId === "114" ? (
@@ -1508,7 +1655,7 @@ Good luck!`,
                               className={`tracking-wider text-xs md:text-base absolute z-10 text-black font-bold text-center leading-tight`}
                               style={{ fontFamily: "'Fira Code', monospace", textShadow: "0 1px 2px rgba(255, 255, 255, 0.3)" }}
                             >
-                              BUY 5 CREDITS<br />(0.5 APT)
+                              BUY 5 CREDITS<br />({vaultData?.blockchain === 'ethereum' ? '0.001 SEP' : '0.5 APT'})
                             </span>
                           </div>
                         ) : (
@@ -1517,7 +1664,7 @@ Good luck!`,
                               className="tracking-wider text-sm md:text-lg"
                               style={{ fontFamily: "vt323, monospace" }}
                             >
-                              BUY 5 CREDITS (0.5 APT)
+                              BUY 5 CREDITS ({vaultData?.blockchain === 'ethereum' ? '0.001 SEP' : '0.5 APT'})
                             </span>
                           </div>
                         )}
@@ -1539,7 +1686,7 @@ Good luck!`,
                     <div
                       className="mt-2 text-xs md:text-sm text-center"
                       style={{
-                        color: purchaseStatus.includes("failed")
+                        color: purchaseStatus.includes("failed") || purchaseStatus.includes("error")
                           ? "#ff6b6b"
                           : "#ffc107",
                       }}

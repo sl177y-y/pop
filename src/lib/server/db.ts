@@ -4,7 +4,8 @@ const supabase = createClient();
 
 export type User = {
   id?: number;
-  wallet_address: string;
+  wallet_address: string | null; // Made nullable to support EVM-only users
+  evm_wallet_address?: string; // Added for EVM wallet support
   credits: number;
   twitter?: {
     username: string;
@@ -29,6 +30,12 @@ export type Vault = {
   linkedin_link?: string; // linkedin link for verification
   whitepaper_link?: string; // whitepaper link for navbar
   retweet_content?: string; // content to check for retweet verification
+  // EVM support fields
+  blockchain?: 'aptos' | 'ethereum'; // blockchain type
+  required_token_address?: string; // ERC20 contract address or null for native ETH
+  required_token_type?: 'native' | 'erc20' | 'erc721' | 'aptos_coin'; // token type
+  required_amount?: number; // minimum token amount required
+  required_token_id?: string; // specific NFT token ID (optional)
 };
 
 export type Transaction = {
@@ -53,6 +60,16 @@ export type Message = {
   content: string;
   role: 'user' | 'assistant' | 'system';
   timestamp?: string;
+};
+
+export type VaultCondition = {
+  id?: number;
+  vault_id: number;
+  condition_type: 'hold_token';
+  token_address?: string;
+  token_type: 'native' | 'erc20' | 'erc721' | 'aptos_coin';
+  amount?: number;
+  reward_credits: number;
 };
 
 export async function checkIfTwitterIdExists(twitterId: string): Promise<{exists: boolean, existingWallet?: string}> {
@@ -110,6 +127,11 @@ export async function getUserByWallet(walletAddress: string): Promise<User | nul
 export async function createOrUpdateUser(userData: User): Promise<User | null | { error: string }> {
   const { wallet_address } = userData;
   
+  // Require at least one wallet address
+  if (!wallet_address && !userData.evm_wallet_address) {
+    return { error: 'At least one wallet address (wallet_address or evm_wallet_address) is required' };
+  }
+  
   // Check if Twitter ID exists (if provided)
   if (userData.twitter?.username) {
     const twitterIdCheck = await checkIfTwitterIdExists(userData.twitter.username);
@@ -120,7 +142,12 @@ export async function createOrUpdateUser(userData: User): Promise<User | null | 
     }
   }
   
-  const existingUser = await getUserByWallet(wallet_address);
+  // Only check for existing Aptos user if wallet_address is provided
+  let existingUser = null;
+  if (wallet_address) {
+    existingUser = await getUserByWallet(wallet_address);
+  }
+  
   if (existingUser) {
     const dataToUpdate = {
       last_active: new Date().toISOString(),
@@ -142,6 +169,7 @@ export async function createOrUpdateUser(userData: User): Promise<User | null | 
       .from('users')
       .insert([{
         wallet_address,
+        evm_wallet_address: userData.evm_wallet_address,
         credits: userData.credits || 0,
         twitter: userData.twitter,
         last_active: new Date().toISOString(),
@@ -157,8 +185,49 @@ export async function createOrUpdateUser(userData: User): Promise<User | null | 
 }
 
 export async function getUserCredits(walletAddress: string): Promise<number> {
-  const user = await getUserByWallet(walletAddress);
-  return user?.credits || 0;
+  console.log(`[GET_USER_CREDITS] Looking for credits with wallet address: ${walletAddress}`);
+  
+  // Search for all users that match this address in either field
+  const { data: allUsers, error } = await supabase
+    .from('users')
+    .select('*')
+    .or(`wallet_address.eq.${walletAddress},evm_wallet_address.eq.${walletAddress}`);
+
+  if (error) {
+    console.error(`[GET_USER_CREDITS] Database error:`, error);
+    return 0;
+  }
+
+  if (!allUsers || allUsers.length === 0) {
+    console.log(`[GET_USER_CREDITS] No users found with address: ${walletAddress}`);
+    return 0;
+  }
+
+  // Log all found users for debugging
+  console.log(`[GET_USER_CREDITS] Found ${allUsers.length} users with address ${walletAddress}:`);
+  allUsers.forEach((user, index) => {
+    console.log(`  User ${index + 1}: ID ${user.id}, wallet_address: ${user.wallet_address}, evm_wallet_address: ${user.evm_wallet_address}, credits: ${user.credits}`);
+  });
+
+  // Prioritize EVM user (where evm_wallet_address matches)
+  const evmUser = allUsers.find(user => user.evm_wallet_address === walletAddress);
+  if (evmUser) {
+    console.log(`[GET_USER_CREDITS] Prioritizing EVM user (ID ${evmUser.id}) with evm_wallet_address match`);
+    console.log(`[GET_USER_CREDITS] Selected user ID ${evmUser.id}, returning credits: ${evmUser.credits}`);
+    return evmUser.credits || 0;
+  }
+
+  // Fallback to Aptos user (where wallet_address matches)
+  const aptosUser = allUsers.find(user => user.wallet_address === walletAddress);
+  if (aptosUser) {
+    console.log(`[GET_USER_CREDITS] Using Aptos user (ID ${aptosUser.id}) with wallet_address match`);
+    console.log(`[GET_USER_CREDITS] Selected user ID ${aptosUser.id}, returning credits: ${aptosUser.credits}`);
+    return aptosUser.credits || 0;
+  }
+
+  // This should never happen given our query, but just in case
+  console.log(`[GET_USER_CREDITS] No matching user found, returning 0`);
+  return 0;
 }
 
 export async function updateUserCredits(walletAddress: string, amount: number, operation: 'add' | 'subtract'): Promise<number | null> {
@@ -176,32 +245,77 @@ export async function updateUserCredits(walletAddress: string, amount: number, o
       return null;
     }
 
-    // Get user with retry logic
+    // Get user with retry logic - check both wallet types
     let user = null;
     let retryCount = 0;
     const maxRetries = 3;
     
     while (retryCount < maxRetries && !user) {
+      // First try to find by regular wallet_address (Aptos)
       user = await getUserByWallet(walletAddress);
+      
+      if (!user) {
+        // If not found, try to find by evm_wallet_address
+        console.log(`[UPDATE_CREDITS] Not found by wallet_address, trying evm_wallet_address...`);
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('evm_wallet_address', walletAddress)
+          .single();
+        
+        if (!error && data) {
+          user = data;
+          console.log(`[UPDATE_CREDITS] Found user by evm_wallet_address:`, user);
+        }
+      }
+      
       if (!user) {
         retryCount++;
         console.warn(`[UPDATE_CREDITS] User ${walletAddress} not found, retry ${retryCount}/${maxRetries}`);
         
-        // Try to create user if not found
+        // Try to create user if not found - detect wallet type
         if (retryCount === 1) {
           console.log(`[UPDATE_CREDITS] Attempting to create user ${walletAddress}`);
-          const createResult = await createOrUpdateUser({
-            wallet_address: walletAddress,
-            credits: 0
-          });
           
-          if (createResult && typeof createResult === 'object' && !('error' in createResult)) {
-            user = createResult;
-            console.log(`[UPDATE_CREDITS] Successfully created user ${walletAddress}`);
-            break;
+          // Detect if it's an EVM address (starts with 0x and 42 chars long)
+          const isEvmAddress = walletAddress.startsWith('0x') && walletAddress.length === 42;
+          
+          if (isEvmAddress) {
+            console.log(`[UPDATE_CREDITS] Creating EVM-only user with evm_wallet_address`);
+            // For EVM addresses, create user with null wallet_address and populated evm_wallet_address
+            const { data, error } = await supabase
+              .from('users')
+              .insert([{
+                wallet_address: null,
+                evm_wallet_address: walletAddress,
+                credits: 0,
+                last_active: new Date().toISOString(),
+              }])
+              .select()
+              .single();
+            
+            if (!error && data) {
+              user = data;
+              console.log(`[UPDATE_CREDITS] Successfully created EVM user:`, user);
+              break;
+            } else {
+              console.warn(`[UPDATE_CREDITS] Failed to create EVM user:`, error);
+            }
           } else {
-            console.warn(`[UPDATE_CREDITS] Failed to create user ${walletAddress}:`, createResult);
-          }
+            // For Aptos addresses, use the existing createOrUpdateUser function
+            const createResult = await createOrUpdateUser({
+              wallet_address: walletAddress,
+              credits: 0
+            });
+            
+            if (createResult && typeof createResult === 'object' && !('error' in createResult)) {
+              user = createResult;
+              console.log(`[UPDATE_CREDITS] Successfully created Aptos user ${walletAddress}`);
+              break;
+            } else {
+              console.warn(`[UPDATE_CREDITS] Failed to create Aptos user ${walletAddress}:`, createResult);
+            }
+                     }
         }
         
         if (retryCount < maxRetries && !user) {
@@ -223,20 +337,25 @@ export async function updateUserCredits(walletAddress: string, amount: number, o
 
     console.log(`[UPDATE_CREDITS] Current: ${currentCredits}, New: ${newBalance} (${operation} ${amount})`);
 
-    // Update credits with retry logic
+    // Update credits with retry logic - use the correct wallet field
     let updateSuccess = false;
     let finalCredits = null;
     retryCount = 0;
     
     while (retryCount < maxRetries && !updateSuccess) {
       try {
-        const { data, error } = await supabase
-          .from('users')
-          .update({ 
-            credits: newBalance, 
-            last_active: new Date().toISOString() 
-          })
-          .eq('wallet_address', walletAddress)
+        // Determine which field to update based on how we found the user
+        const updateQuery = user.evm_wallet_address === walletAddress 
+          ? supabase.from('users').update({ 
+              credits: newBalance, 
+              last_active: new Date().toISOString() 
+            }).eq('evm_wallet_address', walletAddress)
+          : supabase.from('users').update({ 
+              credits: newBalance, 
+              last_active: new Date().toISOString() 
+            }).eq('wallet_address', walletAddress);
+            
+        const { data, error } = await updateQuery
           .select()
           .single();
         

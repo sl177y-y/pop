@@ -7,6 +7,7 @@ import Footer from '@/components/Footer';
 import BorderFrame from '@/components/BorderFrame';
 import AngularButton from '@/components/AngularButton';
 import { WalletConnect } from '@/components/WalletConnect';
+import { DualWalletConnect } from '@/components/DualWalletConnect';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { useMobileDetect } from '@/lib/mobileDetectStore';
 import { prefetchVaultAssets } from '@/utils/prefetch';
@@ -45,17 +46,9 @@ const WebView = ({ frame }) => (
             }}
           > 10000$  </span></span>
       </h1>
-      <WalletConnect redirectPath="/vault" checkExistingUser={true}>
-        <AngularButton
-          buttonWidth="320px"
-          buttonHeight="50px"
-          className="font-bold mt-1"
-          href="#"
-          isLoading={false}
-        >
-          [START CHALLENGE]
-        </AngularButton>
-      </WalletConnect>
+      <DualWalletConnect redirectPath="/vault">
+        [START CHALLENGE]
+      </DualWalletConnect>
       
       {/* Built over Aptos - improved alignment */}
       <div className="flex items-center justify-center md:justify-centre mx-auto md:mx-0 mt-4 text-white text-base md:text-2xl" style={{ maxWidth: "320px" }}>
@@ -117,17 +110,9 @@ const MobileView = ({ frame }) => (
     </div>
 
     <div className="w-full md:w-1/2 lg:w-[48%] z-30 text-center md:text-left md:ml-6 lg:ml-12 mb-8">
-      <WalletConnect redirectPath="/vault" checkExistingUser={true}>
-        <AngularButton
-          buttonWidth="70vw"
-          buttonHeight="50px"
-          className="font-bold mt-1 text-[10px] sm:text-xs md:text-sm"
-          href="#"
-          isLoading={false}
-        >
-          <span style={{ fontSize: '25px' }}>[START CHALLENGE]</span>
-        </AngularButton>
-      </WalletConnect>
+      {/* <DualWalletConnect redirectPath="/vault">
+        [START CHALLENGE]
+      </DualWalletConnect> */}
       
       {/* Built over Aptos - improved alignment */}
       <div className="flex items-center justify-center mx-auto mt-8 text-white text-base md:text-lg" style={{ maxWidth: "70vw" }}>
@@ -175,7 +160,7 @@ export default function Home() {
       <Link href="/verify" prefetch={true} style={{ display: 'none' }} />
       <Link href="/chat" prefetch={true} style={{ display: 'none' }} />
       
-      {/* Main Content - Adjusted padding/margins */}
+      {/* Main Content - Conditionally render only one view */}
       {isMobile ? <MobileView frame={frame} /> : <WebView frame={frame} />}
     </BorderFrame>
   );

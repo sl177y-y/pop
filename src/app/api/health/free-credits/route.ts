@@ -3,11 +3,11 @@ import { freeCreditSystemHealthCheck } from '@/lib/server/db';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('[health-check] Running free credit system health check');
+    // console.log('[health-check] Running free credit system health check');
     
     const healthResult = await freeCreditSystemHealthCheck();
     
-    console.log('[health-check] Health check result:', healthResult);
+    // console.log('[health-check] Health check result:', healthResult);
     
     const statusCode = healthResult.healthy ? 200 : 503;
     

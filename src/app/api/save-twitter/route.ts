@@ -3,13 +3,13 @@ import { createOrUpdateUser, getUserByWallet } from "@/lib/server/db";
 
 export async function POST(request: Request) {
   try {
-    console.log('[DEBUG] save-twitter API called');
+    // console.log('[DEBUG] save-twitter API called');
     
     const { walletAddress, username } = await request.json();
-    console.log(`[DEBUG] Saving Twitter for wallet: ${walletAddress}, username: ${username}`);
+    // console.log(`[DEBUG] Saving Twitter for wallet: ${walletAddress}, username: ${username}`);
 
     if (!walletAddress || !username) {
-      console.log('[DEBUG] Missing required parameters');
+      // console.log('[DEBUG] Missing required parameters');
       return NextResponse.json(
         { error: "Wallet address and Twitter username are required" },
         { status: 400 }
@@ -17,11 +17,11 @@ export async function POST(request: Request) {
     }
 
     // Get user data from database
-    console.log(`[DEBUG] Fetching user data for wallet: ${walletAddress}`);
+    // console.log(`[DEBUG] Fetching user data for wallet: ${walletAddress}`);
     const user = await getUserByWallet(walletAddress);
     
     if (!user) {
-      console.log(`[DEBUG] User not found with wallet: ${walletAddress}`);
+      // console.log(`[DEBUG] User not found with wallet: ${walletAddress}`);
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       verified_follows: []
     };
 
-    console.log('[DEBUG] Twitter data to save:', JSON.stringify(twitterData));
+    // console.log('[DEBUG] Twitter data to save:', JSON.stringify(twitterData));
 
     // Update user with Twitter data
     const updatedUser = await createOrUpdateUser({
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     });
 
     if (!updatedUser) {
-      console.log('[DEBUG] Failed to update user');
+      // console.log('[DEBUG] Failed to update user');
       return NextResponse.json(
         { error: "Failed to update user" },
         { status: 500 }
@@ -53,15 +53,15 @@ export async function POST(request: Request) {
     
     // Check if the response contains an error message (Twitter ID already exists)
     if ('error' in updatedUser) {
-      console.log(`[DEBUG] Twitter error: ${updatedUser.error}`);
+      // console.log(`[DEBUG] Twitter error: ${updatedUser.error}`);
       return NextResponse.json(
         { error: updatedUser.error },
         { status: 409 }
       );
     }
 
-    console.log('[DEBUG] Successfully updated user with twitter data');
-    console.log('[DEBUG] Updated user twitter data:', JSON.stringify(updatedUser.twitter));
+    // console.log('[DEBUG] Successfully updated user with twitter data');
+    // console.log('[DEBUG] Updated user twitter data:', JSON.stringify(updatedUser.twitter));
 
     return NextResponse.json({ 
       success: true,

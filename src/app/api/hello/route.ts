@@ -39,6 +39,15 @@ const VAULT_CONFIG = {
 	}
 };
 
+// EVM Vault configuration mapping for private keys
+const EVM_VAULT_CONFIG = {
+	126: {
+		privateKeyEnvVar: 'EVM_PRIVATE_KEY_126',
+		description: 'Vault 126 - EVM Gaming Rewards',
+		treasuryAddress: '0xcd9dbc15507c5fe4d1f61d3933ea92ba962ba249'
+	}
+};
+
 // Helper function to get private key for specific vault
 function getPrivateKeyForVault(vaultId) {
 	const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
@@ -60,19 +69,46 @@ function getPrivateKeyForVault(vaultId) {
 		return process.env.APTOS_PRIVATE_KEY;
 	}
 
-	console.log(`✅ Using ${vaultConfig.description} for vault ${numericVaultId}`);
+	// console.log(`✅ Using ${vaultConfig.description} for vault ${numericVaultId}`);
+	return privateKey;
+}
+
+// Helper function to get EVM private key for specific vault
+function getEVMPrivateKeyForVault(vaultId) {
+	const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
+
+	if (isNaN(numericVaultId)) {
+		console.error(`Invalid EVM vault ID: ${vaultId}`);
+		return null;
+	}
+
+	const vaultConfig = EVM_VAULT_CONFIG[numericVaultId];
+
+	if (!vaultConfig) {
+		console.error(`No EVM vault configuration found for vault ${numericVaultId}`);
+		return null;
+	}
+
+	const privateKey = process.env[vaultConfig.privateKeyEnvVar];
+
+	if (!privateKey) {
+		console.error(`EVM Private key ${vaultConfig.privateKeyEnvVar} not found`);
+		return null;
+	}
+
+	// console.log(`✅ Using ${vaultConfig.description} for EVM vault ${numericVaultId}`);
 	return privateKey;
 }
 
 // Logger function for AI responses
 function logAIResponse(userId: string, userMessage: string, aiResponse: string) {
 	const timestamp = new Date().toISOString();
-	console.log('=== AI RESPONSE LOG ===');
-	console.log(`Timestamp: ${timestamp}`);
-	console.log(`User ID: ${userId || 'Anonymous'}`);
-	console.log(`User Message: ${userMessage}`);
-	console.log(`AI Response: ${aiResponse}`);
-	console.log('=====================');
+	// console.log('=== AI RESPONSE LOG ===');
+	// console.log(`Timestamp: ${timestamp}`);
+	// console.log(`User ID: ${userId || 'Anonymous'}`);
+	// console.log(`User Message: ${userMessage}`);
+	// console.log(`AI Response: ${aiResponse}`);
+	// console.log('=====================');
 
 	// Optional: Implement additional logging to a file or database here
 }
@@ -202,7 +238,7 @@ function safeContentToString(content: any): string {
 // Function to check for transaction hash in AI response and update vault
 async function checkForTransactionAndUpdateVault(content: string, vaultId: number): Promise<boolean> {
 	try {
-		console.log(`Checking for transaction hash in response for vault ${vaultId}...`);
+		// console.log(`Checking for transaction hash in response for vault ${vaultId}...`);
 
 		// Strict pattern for transaction hash with status
 		const strictPattern = /\[TRANSACTION_HASH\]:\s*(0x[a-fA-F0-9]{64})\s*\(status:\s*(success|failed)\)/i;
@@ -210,7 +246,7 @@ async function checkForTransactionAndUpdateVault(content: string, vaultId: numbe
 		if (match) {
 			const txHash = match[1];
 			const status = match[2].toLowerCase();
-			console.log(`Found transaction hash: ${txHash} with status: ${status}`);
+			// console.log(`Found transaction hash: ${txHash} with status: ${status}`);
 			if (status === 'success') {
 				// Ensure vaultId is a valid number
 				const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
@@ -218,34 +254,34 @@ async function checkForTransactionAndUpdateVault(content: string, vaultId: numbe
 					console.error(`Invalid vault ID: ${vaultId}`);
 					return false;
 				}
-				console.log(`Getting vault data for ID: ${numericVaultId}`);
+				// console.log(`Getting vault data for ID: ${numericVaultId}`);
 				const vault = await getVaultById(numericVaultId);
 				if (!vault) {
 					console.error(`Vault not found with ID: ${numericVaultId}`);
 					return false;
 				}
-				console.log(`Current vault data:`, vault);
+				// console.log(`Current vault data:`, vault);
 				// Calculate new prize amounts (reduce by 1 APT for each transaction)
 				const newTotalPrize = 0;
 				const newAvailablePrize = 0;
-				console.log(`Updating vault ${numericVaultId} prize from ${vault.total_prize} to ${newTotalPrize} (APT values, displayed as USD in UI)`);
+				// console.log(`Updating vault ${numericVaultId} prize from ${vault.total_prize} to ${newTotalPrize} (APT values, displayed as USD in UI)`);
 				const updateResult = await updateVault(numericVaultId, {
 					total_prize: newTotalPrize,
 					available_prize: newAvailablePrize
 				});
 				if (updateResult) {
-					console.log(`✅ Successfully updated vault ${numericVaultId} via updateVault function`);
+					// console.log(`✅ Successfully updated vault ${numericVaultId} via updateVault function`);
 					return true;
 				} else {
 					console.error(`Failed to update vault using updateVault function.`);
 					return false;
 				}
 			} else {
-				console.log('Transaction hash found but status is not success, not updating vault.');
+				// console.log('Transaction hash found but status is not success, not updating vault.');
 				return false;
 			}
 		}
-		console.log('No valid transaction hash with success status found in content.');
+		// console.log('No valid transaction hash with success status found in content.');
 		return false;
 	} catch (error) {
 		console.error('Error checking for transaction or updating vault:', error);
@@ -253,17 +289,299 @@ async function checkForTransactionAndUpdateVault(content: string, vaultId: numbe
 	}
 }
 
+// Function to check for EVM transaction hash in AI response and update vault
+async function checkForEVMTransactionAndUpdateVault(content: string, vaultId: number): Promise<boolean> {
+	try {
+		// console.log(`Checking for EVM transaction hash in response for vault ${vaultId}...`);
+
+		// Strict pattern for transaction hash with status
+		const strictPattern = /\[TRANSACTION_HASH\]:\s*(0x[a-fA-F0-9]{64})\s*\(status:\s*(success|failed)\)/i;
+		const match = content.match(strictPattern);
+		if (match) {
+			const txHash = match[1];
+			const status = match[2].toLowerCase();
+			// console.log(`Found EVM transaction hash: ${txHash} with status: ${status}`);
+			if (status === 'success') {
+				// Ensure vaultId is a valid number
+				const numericVaultId = typeof vaultId === 'string' ? parseInt(vaultId) : vaultId;
+				if (isNaN(numericVaultId)) {
+					console.error(`Invalid EVM vault ID: ${vaultId}`);
+					return false;
+				}
+
+				// Import ethers to verify transaction amount
+				const { ethers } = await import('ethers');
+				
+				try {
+					// Get provider
+					const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
+					
+					// Get transaction details
+					const tx = await provider.getTransaction(txHash);
+					const receipt = await provider.getTransactionReceipt(txHash);
+					
+					if (!tx || !receipt || receipt.status !== 1) {
+						console.error(`EVM transaction verification failed for ${txHash}`);
+						return false;
+					}
+					
+					const transferredEth = parseFloat(ethers.formatEther(tx.value));
+					// console.log(`EVM transaction verified: ${transferredEth} ETH transferred`);
+					
+					// Get current vault data (using already imported functions)
+					// console.log(`Getting EVM vault data for ID: ${numericVaultId}`);
+					const vault = await getVaultById(numericVaultId);
+					if (!vault) {
+						console.error(`EVM Vault not found with ID: ${numericVaultId}`);
+						return false;
+					}
+					// console.log(`Current EVM vault data:`, vault);
+					
+					// Calculate new prize amounts (reduce by transferred amount)
+					const newTotalPrize = Math.max(0, vault.total_prize - transferredEth);
+					const newAvailablePrize = Math.max(0, vault.available_prize - transferredEth);
+					
+					// console.log(`Updating EVM vault ${numericVaultId} prize from ${vault.total_prize} to ${newTotalPrize} ETH`);
+					const updateResult = await updateVault(numericVaultId, {
+						total_prize: newTotalPrize,
+						available_prize: newAvailablePrize
+					});
+					
+					if (updateResult) {
+						// console.log(`✅ Successfully updated EVM vault ${numericVaultId} via updateVault function`);
+						return true;
+					} else {
+						console.error(`Failed to update EVM vault using updateVault function.`);
+						return false;
+					}
+				} catch (verificationError) {
+					console.error(`Error verifying EVM transaction ${txHash}:`, verificationError);
+					return false;
+				}
+			} else {
+				// console.log('EVM transaction hash found but status is not success, not updating vault.');
+				return false;
+			}
+		}
+		// console.log('No valid EVM transaction hash with success status found in content.');
+		return false;
+	} catch (error) {
+		console.error('Error checking for EVM transaction or updating vault:', error);
+		return false;
+	}
+}
+
+// Function to handle EVM vaults with full prize distribution capabilities
+async function handleEVMVault(
+	body: any, 
+	dbVaultId: number | null, 
+	userWalletAddress: string, 
+	availablePrize: number, 
+	aiPrompt: string
+) {
+	try {
+		// Import EVM tools
+		const { evmTools } = await import('../../../lib/evmtools');
+		
+		// Create memory for conversation state
+		const memory = new MemorySaver();
+		
+		// Get EVM private key to verify vault is properly configured
+		const privateKeyStr = getEVMPrivateKeyForVault(dbVaultId);
+		if (!privateKeyStr) {
+			throw new Error(`No EVM private key available for vault ${dbVaultId}. Please check your environment variables.`);
+		}
+		
+		// console.log(`🔑 Using EVM vault ${dbVaultId} private key`);
+		
+		// Create React agent with EVM tools for prize distribution
+		const agent = createReactAgent({
+			llm,
+			tools: evmTools, // Full EVM toolkit with prize distribution
+			checkpointSaver: memory,
+			messageModifier: `You are an AI assistant for an Ethereum-based prize vault. Your goal is to evaluate users and distribute ETH prizes to worthy participants.
+
+VAULT DETAILS:
+- Vault ID: ${dbVaultId}
+- Available Prize: ${availablePrize} ETH (displayed as USD equivalent in UI)
+- User Wallet: ${userWalletAddress}
+- Network: Sepolia Testnet
+
+IMPORTANT TOOLS AVAILABLE:
+1. evmGetBalance - Check vault treasury balance
+2. evmTransferEth - Transfer ETH prizes to users (ONLY when they deserve it)
+3. evmVerifyTransaction - Verify transaction status
+
+EVALUATION CRITERIA:
+${aiPrompt}
+
+PRIZE DISTRIBUTION GUIDELINES:
+- Only transfer ETH after users demonstrate sufficient knowledge/effort
+- Use evmGetBalance to check available funds before transfers
+- Transfer reasonable amounts (typically 0.001-0.01 ETH for demonstrations)
+- Always include the user's wallet address when transferring
+- Provide transaction hashes for verification
+
+BEHAVIORAL INSTRUCTIONS:
+1. Start by checking the vault balance using evmGetBalance
+2. Engage with users to test their knowledge per the vault criteria
+3. When users prove worthy, transfer ETH using evmTransferEth
+4. Always provide Etherscan links for transparency
+5. Be encouraging but maintain evaluation standards
+
+Remember: You have REAL ETH transfer capabilities. Use them responsibly to reward deserving users.`,
+		});
+
+		// Parse request body
+		const messages = body.messages ?? [];
+		const showIntermediateSteps = body.show_intermediate_steps ?? false;
+
+		// For database storage
+		const userId = body.userId;
+		let dbUserId: number | null = null;
+
+		if (userId && !isNaN(parseInt(userId))) {
+			dbUserId = parseInt(userId);
+		}
+
+		// Save user message to database if we have one
+		if (messages.length > 0 && dbUserId && dbVaultId) {
+			const userMessages = messages.filter((msg: VercelChatMessage) => msg.role === 'user');
+
+			if (userMessages.length > 0) {
+				const latestUserMessage = userMessages[userMessages.length - 1];
+				const contentAsString = safeContentToString(latestUserMessage.content);
+
+				// console.log("Saving EVM vault user message to DB:", contentAsString);
+				await saveMessageToDb(dbUserId, dbVaultId, contentAsString, 'user');
+			}
+		}
+
+		// Handle streaming or non-streaming response
+		if (!showIntermediateSteps) {
+			const eventStream = await agent.streamEvents(
+				{ messages },
+				{
+					version: "v2",
+					configurable: {
+						thread_id: "EVM Vault Chat!",
+					},
+				}
+			);
+
+			const textEncoder = new TextEncoder();
+			let fullAIResponse = "";
+
+			const transformStreamWithLogging = new ReadableStream({
+				async start(controller) {
+					try {
+						for await (const { event, data } of eventStream) {
+							if (event === "on_chat_model_stream") {
+								if (data.chunk.content) {
+									let chunkText = "";
+									if (typeof data.chunk.content === "string") {
+										chunkText = data.chunk.content;
+										// Check if controller is still active before enqueuing
+										if (!controller.desiredSize && controller.desiredSize !== 0) {
+											// console.log("[EVM Vault] Controller closed, stopping stream");
+											break;
+										}
+										controller.enqueue(textEncoder.encode(chunkText));
+									} else {
+										for (const content of data.chunk.content) {
+											const contentText = content.text ? content.text : "";
+											chunkText += contentText;
+											// Check if controller is still active before enqueuing
+											if (!controller.desiredSize && controller.desiredSize !== 0) {
+												// console.log("[EVM Vault] Controller closed, stopping stream");
+												break;
+											}
+											controller.enqueue(textEncoder.encode(contentText));
+										}
+									}
+									fullAIResponse += chunkText;
+								}
+							}
+						}
+
+						// Save AI response to database
+						if (dbUserId && dbVaultId && fullAIResponse) {
+							await saveMessageToDb(dbUserId, dbVaultId, fullAIResponse, 'assistant');
+							
+							// Check for EVM transaction hash in AI response and update vault if successful
+							const transactionFound = await checkForEVMTransactionAndUpdateVault(fullAIResponse as string, dbVaultId);
+							if (transactionFound) {
+								// console.log(`✅ EVM vault ${dbVaultId} updated successfully after transaction`);
+							}
+						}
+
+						// Only close if controller is still active
+						try {
+							if (controller.desiredSize !== null) {
+						controller.close();
+							}
+						} catch (closeError) {
+							// console.log("[EVM Vault] Controller already closed:", closeError);
+						}
+					} catch (error) {
+						console.error("[EVM Vault] streamEvents error:", error);
+						try {
+							if (controller.desiredSize !== null) {
+						controller.error(error);
+							}
+						} catch (errorHandlingError) {
+							// console.log("[EVM Vault] Could not send error to controller:", errorHandlingError);
+						}
+					}
+				},
+			});
+
+			return new Response(transformStreamWithLogging);
+		} else {
+			// Non-streaming response
+			const result = await agent.invoke({ messages });
+
+			const aiResponse = result.messages.length > 0 ?
+				safeContentToString(result.messages[result.messages.length - 1].content) :
+				'No response generated';
+
+			// Save AI response to database
+			if (dbUserId && dbVaultId) {
+				await saveMessageToDb(dbUserId, dbVaultId, aiResponse, 'assistant');
+				
+				// Check for EVM transaction hash in AI response and update vault if successful
+				const transactionFound = await checkForEVMTransactionAndUpdateVault(aiResponse, dbVaultId);
+				if (transactionFound) {
+					// console.log(`✅ EVM vault ${dbVaultId} updated successfully after transaction`);
+				}
+			}
+
+			return NextResponse.json(
+				{
+					messages: result.messages.map(convertLangChainMessageToVercelMessage),
+				},
+				{ status: 200 }
+			);
+		}
+	} catch (error: any) {
+		console.error("EVM Vault error:", error);
+		return NextResponse.json(
+			{
+				error: error instanceof Error ? error.message : "An error occurred in EVM vault",
+				status: "error",
+			},
+			{ status: 500 }
+		);
+	}
+}
+
 export async function POST(request: Request) {
 	try {
-
 		const body = await request.json()
 		const vaultIdFromBody = body.vaultId;
 		const userWalletAddress = body.userWalletAddress ?? "not_provided";
-		// Initialize Aptos configuration
-		const aptosConfig = new AptosConfig({
-			network: Network.MAINNET,
-		})
-		console.log("Request body:", {
+		
+		// console.log("Request body:", {
 			vaultId: vaultIdFromBody,
 			userWalletAddress: userWalletAddress,
 			messageCount: body.messages?.length || 0
@@ -273,6 +591,31 @@ export async function POST(request: Request) {
 		if (vaultIdFromBody && !isNaN(parseInt(vaultIdFromBody))) {
 			dbVaultId = parseInt(vaultIdFromBody);
 		}
+
+		// Fetch vault data to determine blockchain type BEFORE initializing any blockchain-specific APIs
+		let vaultData = null;
+		let availablePrize = 0;
+		let aiPrompt = '';
+		
+		if (dbVaultId !== null) {
+			vaultData = await getVaultById(dbVaultId);
+			if (vaultData) {
+				availablePrize = vaultData.available_prize;
+				aiPrompt = vaultData.ai_prompt || '';
+			}
+		}
+
+		// Check if this is an EVM vault - if so, handle it differently
+		if (vaultData?.blockchain === 'ethereum') {
+			return handleEVMVault(body, dbVaultId, userWalletAddress, availablePrize, aiPrompt);
+		}
+
+		// For Aptos vaults, continue with existing logic
+		// Initialize Aptos configuration
+		const aptosConfig = new AptosConfig({
+			network: Network.MAINNET,
+		})
+		
 		const aptos = new Aptos(aptosConfig)
 
 		// Validate and get private key from environment
@@ -282,7 +625,7 @@ export async function POST(request: Request) {
 			throw new Error(`No private key available for vault ${dbVaultId}. Please check your environment variables.`);
 		}
 
-		console.log(`🔑 Using vault ${dbVaultId} private key`);
+		// console.log(`🔑 Using vault ${dbVaultId} private key`);
 
 		// Setup account and signer
 		const account = await aptos.deriveAccountFromPrivateKey({
@@ -297,19 +640,6 @@ export async function POST(request: Request) {
 		// Create base tools
 		const baseTools = createAptosTools(aptosAgent)
 
-
-
-		// Fetch vault data if dbVaultId is available
-		let availablePrize = 0; // Default to 0
-		let aiPrompt = ''; // Default to empty string
-		if (dbVaultId !== null) {
-			const vault = await getVaultById(dbVaultId);
-			if (vault) {
-				availablePrize = vault.available_prize;
-				aiPrompt = vault.ai_prompt || ''; // Get ai_prompt from vault table
-			}
-		}
-
 		const agentAddress = account.accountAddress.toString();
 
 		// Combine base tools and add AptosTransactionTool for mainnet transfers
@@ -321,9 +651,9 @@ export async function POST(request: Request) {
 		const memory = new MemorySaver()
 
 		// Create React agent with the properly formatted tools
-		console.log("availablePrize", availablePrize)
-		console.log("userWalletAddress", userWalletAddress)
-		console.log("aiPrompt", aiPrompt)
+		// console.log("availablePrize", availablePrize)
+		// console.log("userWalletAddress", userWalletAddress)
+		// console.log("aiPrompt", aiPrompt)
 		const agent = createReactAgent({
 			llm,
 			tools: toolsForAgent,
@@ -363,7 +693,7 @@ ${availablePrize} and this is the users wallet adress  (${userWalletAddress}). I
 				// Convert any message content to string safely
 				const contentAsString = safeContentToString(latestUserMessage.content);
 
-				console.log("Saving user message to DB:", contentAsString);
+				// console.log("Saving user message to DB:", contentAsString);
 
 				// Save user message to database
 				await saveMessageToDb(
@@ -423,21 +753,30 @@ ${availablePrize} and this is the users wallet adress  (${userWalletAddress}). I
 									let chunkText = "";
 									if (typeof data.chunk.content === "string") {
 										chunkText = data.chunk.content;
+										// Check if controller is still active before enqueuing
+										if (!controller.desiredSize && controller.desiredSize !== 0) {
+											// console.log("[Aptos Vault] Controller closed, stopping stream");
+											break;
+										}
 										controller.enqueue(textEncoder.encode(chunkText));
 									} else {
 										for (const content of data.chunk.content) {
 											const contentText = content.text ? content.text : "";
 											chunkText += contentText;
+											// Check if controller is still active before enqueuing
+											if (!controller.desiredSize && controller.desiredSize !== 0) {
+												// console.log("[Aptos Vault] Controller closed, stopping stream");
+												break;
+											}
 											controller.enqueue(textEncoder.encode(contentText));
 										}
 									}
-									// Accumulate the response for logging
 									fullAIResponse += chunkText;
 								}
 							}
 						}
 
-						// Once streaming is complete, save the AI response to the database
+						// Save AI response to database
 						if (dbUserId && dbVaultId && fullAIResponse) {
 							await saveMessageToDb(
 								dbUserId,
@@ -448,16 +787,29 @@ ${availablePrize} and this is the users wallet adress  (${userWalletAddress}). I
 
 							// Check for transaction hash and update vault if found
 							if (dbVaultId) {
-								console.log(`🔍 Checking for transactions in streaming response for vault ${dbVaultId}...`);
+								// console.log(`🔍 Checking for transactions in streaming response for vault ${dbVaultId}...`);
 								const transactionFound = await checkForTransactionAndUpdateVault(fullAIResponse as string, dbVaultId);
-								console.log(`Transaction found and processed: ${transactionFound}`);
+								// console.log(`Transaction found and processed: ${transactionFound}`);
 							}
 						}
 
+						// Only close if controller is still active
+						try {
+							if (controller.desiredSize !== null) {
 						controller.close();
+							}
+						} catch (closeError) {
+							// console.log("[Aptos Vault] Controller already closed:", closeError);
+						}
 					} catch (error) {
-						console.error("[API Route] streamEvents error:", error);
+						console.error("[Aptos Vault] streamEvents error:", error);
+						try {
+							if (controller.desiredSize !== null) {
 						controller.error(error);
+							}
+						} catch (errorHandlingError) {
+							// console.log("[Aptos Vault] Could not send error to controller:", errorHandlingError);
+						}
 					}
 				},
 			});
@@ -489,13 +841,13 @@ ${availablePrize} and this is the users wallet adress  (${userWalletAddress}). I
 
 				// Check for transaction hash and update vault if found
 				if (dbVaultId) {
-					console.log(`🔍 Checking for transactions in non-streaming response for vault ${dbVaultId}...`);
+					// console.log(`🔍 Checking for transactions in non-streaming response for vault ${dbVaultId}...`);
 					const transactionFound = await checkForTransactionAndUpdateVault(aiResponse, dbVaultId);
-					console.log(`Transaction found and processed: ${transactionFound}`);
+					// console.log(`Transaction found and processed: ${transactionFound}`);
 				}
 			}
 
-			console.log("result", result);
+			// console.log("result", result);
 
 			return NextResponse.json(
 				{

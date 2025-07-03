@@ -26,16 +26,10 @@ export default function BorderFrame({ children, vaultId: vaultIdProp }: BorderFr
   
   // Effect to get localStorage value on client side
   useEffect(() => {
-    console.log('useEffect running...');
     if (typeof window !== 'undefined') {
       // The correct key is 'selectedVaultId' as used in verify page
       const vault = localStorage.getItem('selectedVaultId');
       setSelectedVault(vault);
-      
-      console.log('Debug - pathname:', pathname);
-      console.log('Debug - selectedVaultId from localStorage:', vault);
-      console.log('Debug - isVerifyPage:', pathname === "/verify");
-      console.log('Debug - vault === "113":', vault === '113');
     }
   }, [pathname]); // Re-run when pathname changes
   
@@ -44,7 +38,6 @@ export default function BorderFrame({ children, vaultId: vaultIdProp }: BorderFr
     const handleStorageChange = () => {
       if (typeof window !== 'undefined') {
         const vault = localStorage.getItem('selectedVaultId');
-        console.log('Storage changed - selectedVaultId:', vault);
         setSelectedVault(vault);
       }
     };
@@ -57,14 +50,6 @@ export default function BorderFrame({ children, vaultId: vaultIdProp }: BorderFr
   const shouldHideYellowCure = isVerifyPage && (selectedVault === '113' || selectedVault === '114');
   const shouldUseBluGrid = isVerifyPage && selectedVault === '113';
   const shouldUseGreenGrid = isVerifyPage && selectedVault === '114';
-  
-  console.log('Debug - Final values:');
-  console.log('  pathname:', pathname);
-  console.log('  isVerifyPage:', isVerifyPage);
-  console.log('  selectedVault:', selectedVault);
-  console.log('  shouldHideYellowCure:', shouldHideYellowCure);
-  console.log('  shouldUseBluGrid:', shouldUseBluGrid);
-  console.log('  shouldUseGreenGrid:', shouldUseGreenGrid);
 
   return (
     <div className="!h-screen relative overflow-hidden flex flex-col">

@@ -59,7 +59,7 @@ export default function AngularButton({
       ></div>
 
       {/* Inset highlights on all sides */}
-      <div className={`absolute inset-[2px] opacity-0 ${isDisabled ? '' : 'group-hover:opacity-30'} transition-opacity duration-200 bg-white`}
+      <div className={`absolute inset-[2px] opacity-0 bg-white`}
         style={{
           clipPath: "polygon(0% 10px, 10px 0%, calc(100% - 10px) 0%, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0% calc(100% - 10px))"
         }}
@@ -67,7 +67,7 @@ export default function AngularButton({
       
       {/* Button content */}
       <div 
-        className={`py-3 relative px-2 flex items-center justify-center ${textColor} font-bold tracking-wider uppercase z-10 transition-transform duration-200 ${isDisabled ? '' : 'group-hover:scale-[1.03]'} text-3xl md:text-4xl`}
+        className={`py-3 relative px-2 flex items-center justify-center ${textColor} font-bold tracking-wider uppercase z-10 text-3xl md:text-4xl`}
         style={{
           clipPath: "polygon(0% 12px, 12px 0%, calc(100% - 12px) 0%, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0% calc(100% - 12px))",
           textShadow: "0 1px 0 rgba(255,255,255,0.3)",
@@ -125,7 +125,7 @@ export default function AngularButton({
       {/* Hover effect overlay */}
       {!isDisabled && (
         <div 
-          className={`absolute inset-0 bg-gradient-to-r ${bgColor.replace('500', '400')} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}
+          className={`absolute inset-0 bg-gradient-to-r ${bgColor.replace('500', '400')} opacity-0`}
           style={{
             clipPath: "polygon(0% 12px, 12px 0%, calc(100% - 12px) 0%, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0% calc(100% - 12px))"
           }}
