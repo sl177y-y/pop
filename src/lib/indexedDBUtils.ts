@@ -37,6 +37,11 @@ let db: IDBDatabase | null = null;
 let dbInitializationPromise: Promise<IDBDatabase> | null = null;
 
 const openDB = (): Promise<IDBDatabase> => {
+  if (typeof indexedDB === 'undefined') {
+    // indexedDB not available (e.g. SSR), reject to avoid runtime errors
+    return Promise.reject(new Error('IndexedDB is not available in this environment'));
+  }
+
   if (db) {
     return Promise.resolve(db);
   }
@@ -87,6 +92,10 @@ const openDB = (): Promise<IDBDatabase> => {
 };
 
 export const getVerificationStatus = async (vaultId: string): Promise<VerificationStatus | null> => {
+  if (typeof indexedDB === 'undefined') {
+    // Skip IndexedDB operations during SSR or static build
+    return null;
+  }
   if (!vaultId) return null;
   try {
     const currentDb = await openDB();
@@ -118,6 +127,10 @@ export const updateVerificationStatus = async (
   vaultId: string,
   updates: Partial<Omit<VerificationStatus, 'vaultId'>>
 ): Promise<void> => {
+  if (typeof indexedDB === 'undefined') {
+    // Skip IndexedDB operations during SSR or static build
+    return;
+  }
   if (!vaultId) return;
   try {
     const currentDb = await openDB();
@@ -163,6 +176,10 @@ export const updateVerificationStatus = async (
 };
 
 export const deleteVerificationStatus = async (vaultId: string): Promise<void> => {
+  if (typeof indexedDB === 'undefined') {
+    // Skip IndexedDB operations during SSR or static build
+    return;
+  }
   if (!vaultId) return;
   try {
     const currentDb = await openDB();

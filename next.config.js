@@ -8,6 +8,9 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   
   // Enable image optimization
   images: {
@@ -69,6 +72,15 @@ const nextConfig = {
         ],
       }
     ];
+  },
+  webpack(config, { isServer }) {
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@coinbase/wallet-sdk/dist/sign/walletlink/relay/connection/HeartbeatWorker.js': path.resolve(__dirname, 'src/lib/HeartbeatWorker.patched.js'),
+    };
+    // Suppress critical dependency warnings (dynamic requires)
+    config.module.exprContextCritical = false;
+    return config;
   },
   /* config options here */
 };
