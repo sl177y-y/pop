@@ -378,7 +378,9 @@ export default function Vault() {
         // console.log(`  - Balance: ${balanceData?.value ? (parseFloat(balanceData.value.toString()) / 1e18).toFixed(4) : '0'} ETH`);
         // console.log(`  - Required: ${vault.required_amount} ${vault.required_token_type === 'native' ? 'ETH' : vault.required_token_type || 'tokens'}`);
         // console.log(`  - Balance fetch address: ${evmWalletAddress}`);
-        if (balanceError) // console.log(`  - Error:`, balanceError);
+        if (balanceError) {
+          console.error(`Balance error:`, balanceError);
+        }
       }
       
       if (vault.blockchain === 'ethereum') {
