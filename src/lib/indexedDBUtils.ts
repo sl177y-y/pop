@@ -217,7 +217,8 @@ export const initDB = async () => {
   }
 };
 
-if (typeof window !== 'undefined') {
+// Only auto-initialize IndexedDB in true browser environments where indexedDB is available
+if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
   initDB().catch(error => {
     console.error("Error during automatic IndexedDB initialization:", error);
   });

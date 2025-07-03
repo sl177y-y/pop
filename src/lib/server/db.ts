@@ -112,6 +112,9 @@ export async function checkIfTwitterIdExists(twitterId: string): Promise<{exists
 }
 
 export async function getUserByWallet(walletAddress: string): Promise<User | null> {
+  if (!walletAddress) {
+    return null; // Don't query if no address is provided
+  }
   const { data, error } = await supabase
     .from('users')
     .select('*')
@@ -125,57 +128,73 @@ export async function getUserByWallet(walletAddress: string): Promise<User | nul
 }
 
 export async function createOrUpdateUser(userData: User): Promise<User | null | { error: string }> {
-  const { wallet_address } = userData;
+  const { wallet_address, evm_wallet_address } = userData;
   
   // Require at least one wallet address
-  if (!wallet_address && !userData.evm_wallet_address) {
-    return { error: 'At least one wallet address (wallet_address or evm_wallet_address) is required' };
+  if (!wallet_address && !evm_wallet_address) {
+    return { error: 'At least one wallet address is required' };
   }
   
-  // Check if Twitter ID exists (if provided)
+  // Check if Twitter ID exists (if provided) and is linked to a different wallet
   if (userData.twitter?.username) {
     const twitterIdCheck = await checkIfTwitterIdExists(userData.twitter.username);
-    if (twitterIdCheck.exists && twitterIdCheck.existingWallet !== wallet_address) {
+    if (twitterIdCheck.exists && 
+        twitterIdCheck.existingWallet !== wallet_address &&
+        twitterIdCheck.existingWallet !== evm_wallet_address) {
       return { 
         error: `This Twitter account is already linked to another wallet: ${twitterIdCheck.existingWallet?.substring(0, 6)}...${twitterIdCheck.existingWallet?.slice(-4)}` 
       };
     }
   }
-  
-  // Only check for existing Aptos user if wallet_address is provided
-  let existingUser = null;
-  if (wallet_address) {
-    existingUser = await getUserByWallet(wallet_address);
+
+  // Build the query to find an existing user by either Aptos or EVM address
+  const query = supabase.from('users').select('*');
+  const conditions = [];
+  if (wallet_address) conditions.push(`wallet_address.eq.${wallet_address}`);
+  if (evm_wallet_address) conditions.push(`evm_wallet_address.eq.${evm_wallet_address}`);
+  query.or(conditions.join(','));
+
+  const { data: existingUsers, error: fetchError } = await query;
+
+  if (fetchError && fetchError.code !== 'PGRST116') { // Ignore 'PGRST116' (no rows)
+    console.error('[DEBUG DB] Error fetching user:', fetchError);
+    return null;
   }
   
+  const existingUser = existingUsers && existingUsers.length > 0 ? existingUsers[0] : null;
+
   if (existingUser) {
+    // User exists, update them
     const dataToUpdate = {
-      last_active: new Date().toISOString(),
       ...userData,
+      wallet_address: wallet_address || existingUser.wallet_address,
+      evm_wallet_address: evm_wallet_address || existingUser.evm_wallet_address,
+      last_active: new Date().toISOString(),
     };
+
     const { data, error } = await supabase
       .from('users')
       .update(dataToUpdate)
-      .eq('wallet_address', wallet_address)
+      .eq('id', existingUser.id) // Update by primary key
       .select()
       .single();
+
     if (error) {
       console.error('[DEBUG DB] Error updating user:', error);
       return null;
     }
     return data;
   } else {
+    // User does not exist, create a new one
     const { data, error } = await supabase
       .from('users')
       .insert([{
-        wallet_address,
-        evm_wallet_address: userData.evm_wallet_address,
-        credits: userData.credits || 0,
-        twitter: userData.twitter,
+        ...userData,
         last_active: new Date().toISOString(),
       }])
       .select()
       .single();
+
     if (error) {
       console.error('[DEBUG DB] Error creating user:', error);
       return null;
