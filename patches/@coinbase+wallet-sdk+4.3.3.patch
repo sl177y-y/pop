@@ -1,0 +1,3 @@
+self.addEventListener('beforeunload', () => {
+    stopHeartbeat();
+}); 
